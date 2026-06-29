@@ -34,6 +34,7 @@ class Host(Base):
     os_guess    = Column(String, nullable=True)
     open_ports       = Column(JSON, default=list)
     agent_installed  = Column(Boolean, default=False)
+    first_seen       = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     last_seen        = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     flagged          = Column(Boolean, default=False)
     acknowledged     = Column(Boolean, default=False)
@@ -100,6 +101,7 @@ async def init_db():
             "ALTER TABLE hosts ADD COLUMN ack_note TEXT",
             "ALTER TABLE hosts ADD COLUMN ack_at DATETIME",
             "ALTER TABLE hosts ADD COLUMN last_alert_at DATETIME",
+            "ALTER TABLE hosts ADD COLUMN first_seen DATETIME",
             "ALTER TABLE domains ADD COLUMN alerted_fail_ids TEXT",
         ]:
             try:

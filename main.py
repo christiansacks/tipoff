@@ -559,10 +559,12 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     from ce.questions import score_answers as _ce_score_fn
     ce_scores  = _ce_score_fn(ce_answers)
 
+    new_cutoff = datetime.now() - timedelta(hours=24)
     return _tpl("index.html", {
         "request":      request,
         "domain_data":  domain_data,
         "hosts":        hosts,
+        "new_cutoff":   new_cutoff,
         "default_cidr": _detect_cidr(),
         # section summaries
         "domain_total":    len(domain_data),
@@ -727,8 +729,9 @@ async def discovery_progress(
         all_hosts = hosts_result.scalars().all()
         _discovery_jobs.pop(job_id, None)
         return templates.TemplateResponse("partials/host_both_views.html", {
-            "request": request,
-            "hosts": all_hosts,
+            "request":   request,
+            "hosts":     all_hosts,
+            "new_cutoff": datetime.now() - timedelta(hours=24),
         })
 
     if job["status"] == "error":

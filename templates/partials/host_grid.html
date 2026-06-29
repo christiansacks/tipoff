@@ -5,6 +5,9 @@
     <div class="host-header">
       <a href="/host/{{ host.id }}" class="host-ip">{{ host.ip }}</a>
       <div class="host-header-right">
+        {% if new_cutoff is defined and host.first_seen and host.first_seen > new_cutoff %}
+          <span class="badge new">NEW</span>
+        {% endif %}
         {% if host.flagged and host.acknowledged %}
           <span class="badge ack">✓ Ack'd</span>
         {% elif host.flagged %}

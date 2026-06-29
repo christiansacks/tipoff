@@ -908,7 +908,7 @@ async def update_license(
         )
     if info.status == LicenseStatus.EXPIRED:
         return HTMLResponse(
-            '<div class="toast error">License key has expired. Please renew at cyberready.io</div>'
+            '<div class="toast error">License key has expired. Please contact us for a new key.</div>'
         )
     await _save_license(db, license_key.strip())
     plan_label = info.plan.upper()

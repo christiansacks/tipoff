@@ -25,9 +25,19 @@ All checks, data, and reports stay on your own infrastructure — nothing is sen
 
 ### Linux
 
+**Option A — Docker Hub (recommended):**
 ```bash
-git clone https://github.com/christiansacks/cyberready.git
-cd cyberready
+# Pull the image
+docker pull meatlotion/tipoff:latest
+
+# Grab docker-compose.yml from this repo, edit credentials, then:
+docker compose up -d
+```
+
+**Option B — Build from source:**
+```bash
+git clone https://github.com/christiansacks/tipoff.git
+cd tipoff
 
 # Edit docker-compose.yml and change CYBERREADY_USERNAME / CYBERREADY_PASSWORD
 # then:
@@ -43,8 +53,8 @@ All features work except **LAN host discovery**, which requires Linux kernel net
 Install [Docker Desktop](https://www.docker.com/products/docker-desktop/), then:
 
 ```bash
-git clone https://github.com/christiansacks/cyberready.git
-cd cyberready
+git clone https://github.com/christiansacks/tipoff.git
+cd tipoff
 
 # Edit docker-compose.yml and change CYBERREADY_USERNAME / CYBERREADY_PASSWORD
 # then use the Windows override:

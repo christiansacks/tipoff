@@ -50,7 +50,7 @@
 {% elif step == 2 %}
 <div class="wizard-card" id="wizard-container"
      hx-get="/partials/wizard"
-     hx-trigger="every 4s"
+     hx-trigger="every 4s [document.activeElement.id !== 'wizard-cidr']"
      hx-target="#wizard-wrap"
      hx-swap="innerHTML">
   <div class="wizard-header">
@@ -86,7 +86,7 @@
         hx-swap="innerHTML"
         hx-on::before-request="toggleSection('hosts')"
         class="wizard-form">
-    <input type="text" name="cidr"
+    <input type="text" name="cidr" id="wizard-cidr"
            value="{{ default_cidr }}"
            placeholder="192.168.1.0/24"
            class="wizard-input"

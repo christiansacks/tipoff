@@ -690,7 +690,6 @@ async def delete_domain(domain_id: str, db: AsyncSession = Depends(get_db)):
 async def start_discovery(
     request: Request,
     cidr: str = Form(...),
-    from_wizard: str = Form(default=""),
     background_tasks: BackgroundTasks = BackgroundTasks(),
 ):
     global _discovery_cidr
@@ -712,7 +711,6 @@ async def start_discovery(
         "request": request,
         "job": _discovery_jobs[job_id],
         "job_id": job_id,
-        "from_wizard": bool(from_wizard),
     })
 
 

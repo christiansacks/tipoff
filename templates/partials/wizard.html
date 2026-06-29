@@ -85,14 +85,13 @@
         hx-target="#host-area"
         hx-swap="innerHTML"
         class="wizard-form">
-    <input type="hidden" name="from_wizard" value="1">
     <input type="text" name="cidr" id="wizard-cidr"
            value="{{ default_cidr }}"
            placeholder="192.168.1.0/24"
            class="wizard-input"
            required>
     <button type="submit" class="wizard-btn"
-            onclick="var s=document.getElementById('section-hosts');if(s&&!s.classList.contains('expanded'))toggleSection('hosts')">
+            onclick="var s=document.getElementById('section-hosts');if(s&&!s.classList.contains('expanded'))toggleSection('hosts');this.textContent='Scanning…';this.disabled=true;">
       Discover hosts →
     </button>
   </form>

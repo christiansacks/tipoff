@@ -1,8 +1,8 @@
-# CyberReady
+# TipOff
 
 **Self-hosted security health checks for small businesses.**
 
-CyberReady runs as a Docker container on your network and continuously monitors your:
+TipOff runs as a Docker container on your network and continuously monitors your:
 
 - **External domains** — SSL certificates, SPF, DMARC, DKIM, security headers, HTTPS redirect, domain expiry
 - **LAN hosts** — auto-discovery, open port risk analysis, vendor/OS detection, acknowledge/mitigate workflow
@@ -63,7 +63,7 @@ docker compose -f docker-compose.yml -f docker-compose.windows.yml up -d
 
 Open [http://localhost:8080](http://localhost:8080) and log in.
 
-> **LAN discovery on Windows:** If you need LAN scanning on a Windows network, the recommended approach is to run CyberReady on a small always-on Linux machine (a Raspberry Pi works well) on the same network.
+> **LAN discovery on Windows:** If you need LAN scanning on a Windows network, the recommended approach is to run TipOff on a small always-on Linux machine (a Raspberry Pi works well) on the same network.
 
 The first-run wizard will walk you through adding your first domain and discovering LAN hosts.
 
@@ -81,7 +81,7 @@ All settings can be changed at runtime via the **Settings** page. The following 
 
 ### HTTPS
 
-Uncomment `HTTPS=true` in `docker-compose.yml`. CyberReady will generate a self-signed certificate on first start and serve on port 8443.
+Uncomment `HTTPS=true` in `docker-compose.yml`. TipOff will generate a self-signed certificate on first start and serve on port 8443.
 
 For a proper certificate, mount your cert/key into `/data/cert.pem` and `/data/key.pem`.
 
@@ -95,7 +95,7 @@ You can customise the DNS servers used under **Settings → DNS Servers**.
 
 ## LAN Discovery
 
-CyberReady uses `nmap` + ARP to discover hosts on your network.
+TipOff uses `nmap` + ARP to discover hosts on your network.
 
 Enter one or more CIDR ranges (comma-separated) in the dashboard, e.g. `192.168.1.0/24, 10.0.0.0/24`. Scheduled auto-scans can be configured under **Settings → LAN Scan Schedule**.
 
@@ -105,7 +105,7 @@ Enter one or more CIDR ranges (comma-separated) in the dashboard, e.g. `192.168.
 
 ## Email Alerts
 
-Configure SMTP under **Settings → Email**. CyberReady will send:
+Configure SMTP under **Settings → Email**. TipOff will send:
 
 - **Instant alerts** when a new critical issue is found
 - **Weekly digests** with a summary of all domain and host status
@@ -132,7 +132,7 @@ The **CE questionnaire** covers all five Cyber Essentials control areas:
 4. Malware Protection
 5. Patch Management
 
-Where scan evidence exists (e.g. dangerous open ports found, SSL failures), CyberReady automatically surfaces it on the relevant question with an "⚡ scan evidence" badge.
+Where scan evidence exists (e.g. dangerous open ports found, SSL failures), TipOff automatically surfaces it on the relevant question with an "⚡ scan evidence" badge.
 
 ---
 
@@ -144,9 +144,9 @@ Generate a read-only link under **Settings → Shareable Link**. Share it with a
 
 ## Pro Licence
 
-CyberReady Free includes all scanning and monitoring features.
+TipOff Free includes all scanning and monitoring features.
 
-**CyberReady Pro** unlocks:
+**TipOff Pro** unlocks:
 
 - PDF report generation
 - Email alerts and weekly digests
@@ -173,8 +173,8 @@ This mounts the source directory into the container and starts Uvicorn with `--r
 
 ## Licence
 
-CyberReady is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+TipOff is licensed under the [GNU Affero General Public License v3.0](LICENSE).
 
-In short: you can use, modify, and self-host CyberReady freely. If you distribute a modified version or run it as a service for others, you must make your source changes available under the same licence.
+In short: you can use, modify, and self-host TipOff freely. If you distribute a modified version or run it as a service for others, you must make your source changes available under the same licence.
 
 Commercial Pro licence keys are sold separately and are not covered by the AGPL.

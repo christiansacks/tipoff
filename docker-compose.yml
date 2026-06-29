@@ -1,6 +1,6 @@
 services:
   tipoff:
-    build: .
+    image: meatlotion/tipoff:latest
     container_name: tipoff
     network_mode: host          # required for LAN discovery on Linux
     cap_add:

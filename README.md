@@ -15,27 +15,45 @@ All checks, data, and reports stay on your own infrastructure — nothing is sen
 
 ## Requirements
 
-- [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/)
-- Linux host recommended for LAN discovery (uses `network_mode: host` and raw sockets)
-- macOS/Windows: external domain checks work fully; LAN discovery has limited support
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows/Mac) or Docker Engine (Linux)
+- [Docker Compose](https://docs.docker.com/compose/install/) (included with Docker Desktop)
+- Linux host required for LAN discovery — see [Windows / Mac](#windows--mac) below
 
 ---
 
 ## Quick Start
 
+### Linux
+
 ```bash
-# 1. Clone the repo
 git clone https://github.com/christiansacks/cyberready.git
 cd cyberready
 
-# 2. Set your credentials (edit docker-compose.yml, or override with env vars)
-#    CYBERREADY_USERNAME and CYBERREADY_PASSWORD default to admin/admin — change them
-
-# 3. Start
+# Edit docker-compose.yml and change CYBERREADY_USERNAME / CYBERREADY_PASSWORD
+# then:
 docker compose up -d
 ```
 
 Open [http://localhost:8080](http://localhost:8080) and log in.
+
+### Windows / Mac
+
+All features work except **LAN host discovery**, which requires Linux kernel networking (`network_mode: host`). Domain checks, breach monitoring, Cyber Essentials, and reports all work normally.
+
+Install [Docker Desktop](https://www.docker.com/products/docker-desktop/), then:
+
+```bash
+git clone https://github.com/christiansacks/cyberready.git
+cd cyberready
+
+# Edit docker-compose.yml and change CYBERREADY_USERNAME / CYBERREADY_PASSWORD
+# then use the Windows override:
+docker compose -f docker-compose.yml -f docker-compose.windows.yml up -d
+```
+
+Open [http://localhost:8080](http://localhost:8080) and log in.
+
+> **LAN discovery on Windows:** If you need LAN scanning on a Windows network, the recommended approach is to run CyberReady on a small always-on Linux machine (a Raspberry Pi works well) on the same network.
 
 The first-run wizard will walk you through adding your first domain and discovering LAN hosts.
 

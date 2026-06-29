@@ -84,14 +84,16 @@
   <form hx-post="/discover"
         hx-target="#host-area"
         hx-swap="innerHTML"
-        hx-on::before-request="toggleSection('hosts')"
         class="wizard-form">
     <input type="text" name="cidr" id="wizard-cidr"
            value="{{ default_cidr }}"
            placeholder="192.168.1.0/24"
            class="wizard-input"
            required>
-    <button type="submit" class="wizard-btn">Discover hosts →</button>
+    <button type="submit" class="wizard-btn"
+            onclick="var s=document.getElementById('section-hosts');if(s&&!s.classList.contains('expanded'))toggleSection('hosts')">
+      Discover hosts →
+    </button>
   </form>
 </div>
 {% endif %}

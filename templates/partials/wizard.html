@@ -85,6 +85,7 @@
         hx-target="#host-area"
         hx-swap="innerHTML"
         class="wizard-form">
+    <input type="hidden" name="from_wizard" value="1">
     <input type="text" name="cidr" id="wizard-cidr"
            value="{{ default_cidr }}"
            placeholder="192.168.1.0/24"

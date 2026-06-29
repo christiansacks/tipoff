@@ -1,3 +1,15 @@
+{% if from_wizard %}
+<div id="wizard-wrap" hx-swap-oob="innerHTML"
+     hx-get="/partials/wizard"
+     hx-trigger="every 4s"
+     hx-swap="innerHTML">
+  <div class="wizard-scanning">
+    <span class="wizard-done-icon">⟳</span>
+    <span>Scanning your network…</span>
+  </div>
+</div>
+{% endif %}
+
 <div class="discovery-progress"
      hx-get="/discover/progress/{{ job_id }}"
      hx-trigger="every 2s"

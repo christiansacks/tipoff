@@ -934,6 +934,16 @@ button:hover { opacity: 0.85; }
   animation: wizard-fade 5s ease forwards;
 }
 .wizard-done-icon { font-size: 18px; }
+.wizard-scanning {
+  display: flex; align-items: center; gap: .75rem;
+  padding: .75rem 1.1rem;
+  background: rgba(99,102,241,.06);
+  border: 1px solid rgba(99,102,241,.2);
+  border-radius: 8px; font-size: 14px; color: var(--text-muted);
+  margin-bottom: 1.25rem;
+}
+.wizard-scanning .wizard-done-icon { display: inline-block; animation: spin 1.2s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .wizard-ce-link   { margin-left: auto; font-size: 13px; color: var(--accent); text-decoration: none; }
 .wizard-ce-link:hover { text-decoration: underline; }
 @keyframes wizard-fade {

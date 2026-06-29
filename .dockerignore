@@ -1,0 +1,25 @@
+# Licence signing tools — private key must never be baked into the image
+keygen/
+
+# Git history
+.git/
+
+# Runtime data (mounted as a volume at runtime)
+data/
+*.db
+*.sqlite
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Development overrides
+docker-compose*.yml
+.env
+.env.*
+
+# Docs and tooling not needed in the image
+README.md
+LICENSE
+.gitignore
+.dockerignore

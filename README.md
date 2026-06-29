@@ -143,7 +143,7 @@ CyberReady Free includes all scanning and monitoring features.
 - Email breach monitoring (HIBP)
 - MSP features (coming soon)
 
-Pro licences are available at **[cyberready.io](https://cyberready.io)** *(coming soon)*. Activate a key under **Settings → Licence**.
+Pro licences — activate a key under **Settings → Licence**.
 
 ---
 

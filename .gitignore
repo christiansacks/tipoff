@@ -25,6 +25,7 @@ keygen/
 # Environment overrides
 .env
 .env.*
+docker-compose.override.yml
 
 # OS
 .DS_Store

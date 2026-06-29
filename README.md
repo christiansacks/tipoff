@@ -79,6 +79,19 @@ All settings can be changed at runtime via the **Settings** page. The following 
 | `TIPOFF_PASSWORD` | `admin` | Dashboard login password — **change this** |
 | `HTTPS` | *(unset)* | Set to `true` to enable HTTPS on port 8443 |
 
+### Changing the port
+
+By default TipOff runs on port 8080. To use a different port, create a `docker-compose.override.yml` alongside your `docker-compose.yml`:
+
+```yaml
+services:
+  tipoff:
+    entrypoint: []
+    command: uvicorn main:app --host 0.0.0.0 --port 9090
+```
+
+Replace `9090` with any port you like. Docker Compose picks up the override file automatically — no flags needed. This file is gitignored so it stays local to your machine.
+
 ### HTTPS
 
 Uncomment `HTTPS=true` in `docker-compose.yml`. TipOff will generate a self-signed certificate on first start and serve on port 8443.

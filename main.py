@@ -20,8 +20,8 @@ from scanner.models import Status
 
 # ── Auth ───────────────────────────────────────────────────────────────────────
 # Env vars lock credentials (UI change disabled). Falls back to DB, then admin/admin.
-_ENV_USERNAME = os.environ.get("CYBERREADY_USERNAME", "")
-_ENV_PASSWORD = os.environ.get("CYBERREADY_PASSWORD", "")
+_ENV_USERNAME = os.environ.get("TIPOFF_USERNAME", os.environ.get("CYBERREADY_USERNAME", ""))
+_ENV_PASSWORD = os.environ.get("TIPOFF_PASSWORD", os.environ.get("CYBERREADY_PASSWORD", ""))
 
 # In-memory cache — loaded from DB at startup, updated on UI change.
 _auth: dict = {"username": "admin", "password_hash": ""}
@@ -335,7 +335,7 @@ async def _check_and_send_alerts():
                 html = templates.env.get_template("email/alert.html").render(ctx)
                 text = templates.env.get_template("email/alert.txt").render(ctx)
                 n = len(new_domain_issues) + len(new_flagged_hosts)
-                subject = f"CyberReady Alert — {n} new issue{'s' if n != 1 else ''} found"
+                subject = f"TipOff Alert — {n} new issue{'s' if n != 1 else ''} found"
                 await send_email(_email_cfg, _email_recipient, subject, html, text)
                 now = datetime.now(timezone.utc)
                 for host in new_flagged_hosts:
@@ -378,7 +378,7 @@ async def _send_weekly_digest():
         }
         html = templates.env.get_template("email/digest.html").render(ctx)
         text = templates.env.get_template("email/digest.txt").render(ctx)
-        subject = f"CyberReady Weekly Digest — {datetime.now(timezone.utc).strftime('%d %b %Y')}"
+        subject = f"TipOff Weekly Digest — {datetime.now(timezone.utc).strftime('%d %b %Y')}"
         await send_email(_email_cfg, _email_recipient, subject, html, text)
     except Exception as e:
         print(f"Digest email failed: {e}")
@@ -474,7 +474,7 @@ async def auth_middleware(request: Request, call_next):
     return Response(
         content="Unauthorized",
         status_code=401,
-        headers={"WWW-Authenticate": 'Basic realm="CyberReady"'},
+        headers={"WWW-Authenticate": 'Basic realm="TipOff"'},
     )
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -1041,8 +1041,8 @@ async def send_test_email():
         return HTMLResponse('<div class="toast error">Set a recipient email address first.</div>')
     from mailer.sender import send_email
     try:
-        html = "<p style='font-family:sans-serif'><strong>CyberReady</strong> — test email. Your SMTP settings are working correctly.</p>"
-        await send_email(_email_cfg, _email_recipient, "CyberReady — test email", html)
+        html = "<p style='font-family:sans-serif'><strong>TipOff</strong> — test email. Your SMTP settings are working correctly.</p>"
+        await send_email(_email_cfg, _email_recipient, "TipOff — test email", html)
         return HTMLResponse(f'<div class="toast">Test email sent to {_email_recipient}.</div>')
     except Exception as e:
         return HTMLResponse(f'<div class="toast error">Send failed: {e}</div>')
@@ -1224,7 +1224,7 @@ async def save_hibp_settings(hibp_api_key: str = Form(default="")):
 async def download_pdf_report(request: Request, db: AsyncSession = Depends(get_db)):
     if not _license.has_feature("pdf"):
         return HTMLResponse(
-            "<p style='font-family:sans-serif;padding:2rem'>PDF reports require a CyberReady Pro licence. "
+            "<p style='font-family:sans-serif;padding:2rem'>PDF reports require a TipOff Pro licence. "
             "<a href='/settings#license'>Activate your key →</a></p>",
             status_code=403,
         )
@@ -1267,7 +1267,7 @@ async def download_pdf_report(request: Request, db: AsyncSession = Depends(get_d
         lambda: WeasyHTML(string=html_str).write_pdf()
     )
 
-    filename = f"cyberready-report-{datetime.now(timezone.utc).strftime('%Y%m%d')}.pdf"
+    filename = f"tipoff-report-{datetime.now(timezone.utc).strftime('%Y%m%d')}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

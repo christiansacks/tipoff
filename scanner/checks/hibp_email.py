@@ -10,7 +10,7 @@ async def check_email_breaches(email: str, api_key: str) -> dict:
         try:
             resp = await client.get(
                 _HIBP_URL.format(email),
-                headers={"hibp-api-key": api_key, "user-agent": "CyberReady/1.0"},
+                headers={"hibp-api-key": api_key, "user-agent": "TipOff/1.0"},
                 params={"truncateResponse": "false"},
             )
             if resp.status_code == 404:

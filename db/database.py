@@ -7,7 +7,7 @@ import hashlib, os, secrets, uuid
 import os
 os.makedirs("/data", exist_ok=True)
 
-engine = create_async_engine("sqlite+aiosqlite:////data/cyberready.db", echo=False)
+engine = create_async_engine("sqlite+aiosqlite:////data/tipoff.db", echo=False)
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 class Base(DeclarativeBase):

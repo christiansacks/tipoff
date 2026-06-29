@@ -321,7 +321,7 @@
 
   {% if env_locked %}
   <div class="notice">
-    Credentials are controlled by environment variables (<code>CYBERREADY_USERNAME</code> / <code>CYBERREADY_PASSWORD</code>)
+    Credentials are controlled by environment variables (<code>TIPOFF_USERNAME</code> / <code>TIPOFF_PASSWORD</code>)
     and cannot be changed here. Edit your <code>docker-compose.yml</code> to update them.
   </div>
   {% else %}
@@ -380,7 +380,7 @@
       <label>Base URL <span class="muted">(optional)</span></label>
       <input type="text" name="base_url" value="{{ base_url }}"
              placeholder="{{ detected_url }}" style="max-width:320px">
-      <div class="field-hint">e.g. http://cyberready.lan:8080 — leave blank to use the auto-detected IP</div>
+      <div class="field-hint">e.g. http://tipoff.lan:8080 — leave blank to use the auto-detected IP</div>
     </div>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
       <button type="submit">{% if share_url %}Regenerate link{% else %}Generate link{% endif %}</button>

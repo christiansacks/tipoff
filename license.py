@@ -1,5 +1,5 @@
 """
-License verification for CyberReady.
+License verification for TipOff.
 The public key is embedded here — it is safe to be in open source.
 Nobody can forge a valid signature without the private key.
 """

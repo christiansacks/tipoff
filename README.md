@@ -39,7 +39,7 @@ docker compose up -d
 git clone https://github.com/christiansacks/tipoff.git
 cd tipoff
 
-# Edit docker-compose.yml and change CYBERREADY_USERNAME / CYBERREADY_PASSWORD
+# Edit docker-compose.yml and change TIPOFF_USERNAME / TIPOFF_PASSWORD
 # then:
 docker compose up -d
 ```
@@ -56,7 +56,7 @@ Install [Docker Desktop](https://www.docker.com/products/docker-desktop/), then:
 git clone https://github.com/christiansacks/tipoff.git
 cd tipoff
 
-# Edit docker-compose.yml and change CYBERREADY_USERNAME / CYBERREADY_PASSWORD
+# Edit docker-compose.yml and change TIPOFF_USERNAME / TIPOFF_PASSWORD
 # then use the Windows override:
 docker compose -f docker-compose.yml -f docker-compose.windows.yml up -d
 ```
@@ -75,8 +75,8 @@ All settings can be changed at runtime via the **Settings** page. The following 
 
 | Variable | Default | Description |
 |---|---|---|
-| `CYBERREADY_USERNAME` | `admin` | Dashboard login username |
-| `CYBERREADY_PASSWORD` | `admin` | Dashboard login password — **change this** |
+| `TIPOFF_USERNAME` | `admin` | Dashboard login username |
+| `TIPOFF_PASSWORD` | `admin` | Dashboard login password — **change this** |
 | `HTTPS` | *(unset)* | Set to `true` to enable HTTPS on port 8443 |
 
 ### HTTPS

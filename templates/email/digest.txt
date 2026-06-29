@@ -1,4 +1,4 @@
-CyberReady — Weekly Security Digest
+TipOff — Weekly Security Digest
 {{ generated_at }}
 {{ '=' * 60 }}
 
@@ -35,6 +35,6 @@ ACKNOWLEDGED RISKS
 {% endfor %}
 {% endif %}
 {{ '=' * 60 }}
-Log in to CyberReady to view the full report or download a PDF.
+Log in to TipOff to view the full report or download a PDF.
 
-CyberReady — IT Security Health Monitoring
+TipOff — IT Security Health Monitoring

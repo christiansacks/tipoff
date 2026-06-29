@@ -1,5 +1,5 @@
 services:
-  cyberready:
+  tipoff:
     network_mode: bridge
     ports:
       - "8080:8080"

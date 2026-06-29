@@ -1,6 +1,6 @@
 {% if license.status == LicenseStatus.EXPIRING_SOON %}
 <div class="license-banner warn">
-  Your CyberReady Pro license expires in <strong>{{ license.days_remaining }} day{{ 's' if license.days_remaining != 1 else '' }}</strong>.
+  Your TipOff Pro license expires in <strong>{{ license.days_remaining }} day{{ 's' if license.days_remaining != 1 else '' }}</strong>.
   <a href="/settings#license">Renew now →</a>
 </div>
 {% elif license.status == LicenseStatus.GRACE_PERIOD %}

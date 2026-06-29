@@ -1,6 +1,12 @@
 #!/bin/bash
 set -e
 
+# Migrate old database name if upgrading from CyberReady
+if [ -f /data/cyberready.db ] && [ ! -f /data/tipoff.db ]; then
+    echo "Migrating cyberready.db to tipoff.db..."
+    cp /data/cyberready.db /data/tipoff.db
+fi
+
 if [ "${HTTPS}" = "true" ]; then
     CERT=/data/cert.pem
     KEY=/data/key.pem
@@ -9,7 +15,7 @@ if [ "${HTTPS}" = "true" ]; then
         openssl req -x509 -newkey rsa:4096 \
             -keyout "$KEY" -out "$CERT" \
             -days 3650 -nodes \
-            -subj "/CN=cyberready" \
+            -subj "/CN=tipoff" \
             -addext "subjectAltName=IP:127.0.0.1" 2>/dev/null
         echo "Certificate generated at $CERT"
     fi

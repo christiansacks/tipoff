@@ -1,4 +1,4 @@
-CyberReady — Security Alert
+TipOff — Security Alert
 {{ generated_at }}
 {{ '=' * 60 }}
 
@@ -28,6 +28,6 @@ NEWLY FLAGGED HOSTS
 {% endfor %}
 {% endif %}
 {{ '=' * 60 }}
-Log in to CyberReady to review these issues and apply remediation.
+Log in to TipOff to review these issues and apply remediation.
 
-CyberReady — IT Security Health Monitoring
+TipOff — IT Security Health Monitoring

@@ -50,7 +50,7 @@
 {% elif step == 2 %}
 <div class="wizard-card" id="wizard-container"
      hx-get="/partials/wizard"
-     hx-trigger="every 4s [document.activeElement.id !== 'wizard-cidr']"
+     hx-trigger="every 4s [!(document.getElementById('wizard-cidr') && document.getElementById('wizard-cidr').value !== document.getElementById('wizard-cidr').defaultValue)]"
      hx-target="#wizard-wrap"
      hx-swap="innerHTML">
   <div class="wizard-header">

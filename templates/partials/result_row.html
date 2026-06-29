@@ -1,0 +1,7 @@
+<div class="result-row {{ r.status }}">
+  <div class="result-title">{{ r.title }}</div>
+  <div class="result-detail">{{ r.detail }}</div>
+  {% if r.remediation %}
+    <div class="result-remediation">Fix: {{ r.remediation }}</div>
+  {% endif %}
+</div>

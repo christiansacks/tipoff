@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header">
+  <a href="/" class="back">← Dashboard</a>
+  <h1>{{ domain.hostname }}</h1>
+  {% if score is not none %}
+    <span class="score-large score-{{ 'good' if score >= 48 else ('ok' if score >= 30 else 'bad') }}">
+      {{ score }}/60
+    </span>
+  {% endif %}
+</div>
+
+{% if not fails and not warns and not passes %}
+  <div class="card"><p>Scan in progress — check back in a moment.</p></div>
+{% endif %}
+
+{% if fails %}
+<section class="card">
+  <h2 class="section-title fail">Critical Issues</h2>
+  {% for r in fails %}
+    {% include "partials/result_row.html" %}
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if warns %}
+<section class="card">
+  <h2 class="section-title warn">Warnings</h2>
+  {% for r in warns %}
+    {% include "partials/result_row.html" %}
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if passes %}
+<section class="card">
+  <h2 class="section-title pass">Passing</h2>
+  {% for r in passes %}
+    {% include "partials/result_row.html" %}
+  {% endfor %}
+</section>
+{% endif %}
+
+{% endblock %}

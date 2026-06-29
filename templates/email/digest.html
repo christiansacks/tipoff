@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:system-ui,-apple-system,Arial,sans-serif;color:#1f2937">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 16px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+
+  <!-- Header -->
+  <tr>
+    <td style="background:#1a1d27;padding:24px 32px">
+      <span style="font-size:20px;font-weight:700;color:#6366f1;letter-spacing:-0.02em">CyberReady</span>
+      <p style="margin:4px 0 0 0;font-size:12px;color:#9ca3af">Weekly Security Digest &mdash; {{ generated_at }}</p>
+    </td>
+  </tr>
+
+  <!-- Summary bar -->
+  <tr>
+    <td style="padding:24px 32px 16px 32px">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td width="25%" style="text-align:center;padding:12px 8px;border:1px solid #e5e7eb;border-radius:6px">
+            <div style="font-size:28px;font-weight:700;color:#6366f1">{{ domain_data|length }}</div>
+            <div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-top:3px">Domains</div>
+          </td>
+          <td width="3%"></td>
+          <td width="25%" style="text-align:center;padding:12px 8px;border:1px solid #e5e7eb;border-radius:6px">
+            <div style="font-size:28px;font-weight:700;color:{{ '#16a34a' if domain_passes == domain_data|length else '#d97706' }}">{{ domain_passes }}/{{ domain_data|length }}</div>
+            <div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-top:3px">Passing</div>
+          </td>
+          <td width="3%"></td>
+          <td width="25%" style="text-align:center;padding:12px 8px;border:1px solid #e5e7eb;border-radius:6px">
+            <div style="font-size:28px;font-weight:700;color:{{ '#dc2626' if flagged_hosts else '#16a34a' }}">{{ flagged_hosts|length }}</div>
+            <div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-top:3px">Hosts Flagged</div>
+          </td>
+          <td width="3%"></td>
+          <td width="25%" style="text-align:center;padding:12px 8px;border:1px solid #e5e7eb;border-radius:6px">
+            <div style="font-size:28px;font-weight:700;color:#6366f1">{{ total_hosts }}</div>
+            <div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-top:3px">Total Hosts</div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <!-- Domain section -->
+  <tr>
+    <td style="padding:8px 32px 0 32px">
+      <p style="font-size:13px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 12px 0;padding-bottom:8px;border-bottom:2px solid #e5e7eb">Domain Checks</p>
+      {% for item in domain_data %}
+      {% set score = item.score %}
+      {% set score_color = '#16a34a' if score and score >= 50 else '#d97706' if score and score >= 30 else '#dc2626' %}
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10px">
+        <tr>
+          <td style="padding:8px 14px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td><span style="font-size:13px;font-weight:600">{{ item.domain.hostname }}</span></td>
+                <td align="right">
+                  <span style="font-size:12px;font-weight:700;color:{{ score_color }};background:{{ '#dcfce7' if score and score >= 50 else '#fef9c3' if score and score >= 30 else '#fee2e2' }};padding:2px 8px;border-radius:4px">
+                    {{ score }}/60
+                  </span>
+                </td>
+              </tr>
+              {% if item.fails > 0 or item.warns > 0 %}
+              <tr>
+                <td colspan="2" style="padding-top:6px">
+                  {% for r in item.results %}{% if r.status in ('fail', 'warn') %}
+                  <div style="font-size:12px;margin:3px 0">
+                    <span style="display:inline-block;background:{{ '#fee2e2' if r.status == 'fail' else '#fef9c3' }};color:{{ '#dc2626' if r.status == 'fail' else '#b45309' }};font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;margin-right:6px">{{ r.status|upper }}</span>
+                    {{ r.title }}
+                  </div>
+                  {% endif %}{% endfor %}
+                </td>
+              </tr>
+              {% endif %}
+            </table>
+          </td>
+        </tr>
+      </table>
+      {% endfor %}
+    </td>
+  </tr>
+
+  <!-- Flagged hosts section -->
+  {% if flagged_hosts %}
+  <tr>
+    <td style="padding:16px 32px 0 32px">
+      <p style="font-size:13px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 12px 0;padding-bottom:8px;border-bottom:2px solid #e5e7eb">Flagged Hosts Requiring Attention</p>
+      {% for host in flagged_hosts %}
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:8px">
+        <tr>
+          <td style="padding:8px 14px;border:1px solid #fecaca;border-left:3px solid #dc2626;border-radius:4px;background:#fff7f7">
+            <span style="font-family:monospace;font-size:13px;font-weight:700">{{ host.ip }}</span>
+            {% if host.vendor and host.vendor != 'Unknown' %}
+            <span style="font-size:11px;color:#6b7280;margin-left:8px">{{ host.vendor }}</span>
+            {% endif %}
+            <div style="margin-top:4px">
+              {% for p in host.open_ports %}{% if p.dangerous %}
+              <span style="display:inline-block;font-family:monospace;font-size:11px;background:#fee2e2;color:#dc2626;padding:1px 5px;border-radius:3px;margin:1px 2px 0 0">{{ p.port }}/{{ p.service }}</span>
+              {% endif %}{% endfor %}
+            </div>
+          </td>
+        </tr>
+      </table>
+      {% endfor %}
+    </td>
+  </tr>
+  {% endif %}
+
+  <!-- Acknowledged section -->
+  {% if acknowledged_hosts %}
+  <tr>
+    <td style="padding:16px 32px 0 32px">
+      <p style="font-size:13px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 8px 0">Acknowledged Risks ({{ acknowledged_hosts|length }})</p>
+      <p style="font-size:12px;color:#9ca3af;margin:0">
+        {% for host in acknowledged_hosts %}{{ host.ip }}{% if not loop.last %}, {% endif %}{% endfor %}
+      </p>
+    </td>
+  </tr>
+  {% endif %}
+
+  <!-- Footer -->
+  <tr>
+    <td style="padding:24px 32px 16px 32px;border-top:1px solid #e5e7eb;margin-top:24px">
+      <p style="font-size:11px;color:#9ca3af;text-align:center;margin:0">
+        CyberReady &mdash; IT Security Health Monitoring<br>
+        This digest is sent automatically. Log in to view the full report or download a PDF.
+      </p>
+    </td>
+  </tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{% if license.status == LicenseStatus.EXPIRING_SOON %}
+<div class="license-banner warn">
+  Your CyberReady Pro license expires in <strong>{{ license.days_remaining }} day{{ 's' if license.days_remaining != 1 else '' }}</strong>.
+  <a href="/settings#license">Renew now →</a>
+</div>
+{% elif license.status == LicenseStatus.GRACE_PERIOD %}
+<div class="license-banner fail">
+  Your license expired — Pro features still active for a few more days.
+  <a href="/settings#license">Renew immediately →</a>
+</div>
+{% elif license.status == LicenseStatus.EXPIRED %}
+<div class="license-banner fail">
+  Your Pro license has expired. Pro features have been disabled.
+  <a href="/settings#license">Renew at cyberready.io →</a>
+</div>
+{% endif %}

@@ -1,0 +1,46 @@
+{% if emails %}
+<div class="breach-email-list">
+  {% for me in emails %}
+  <div class="breach-email-row {{ 'breached' if me.status == 'breached' else 'clean' if me.status == 'clean' else '' }}">
+    <div class="breach-email-info">
+      <span class="breach-email-addr">{{ me.email }}</span>
+      {% if me.status == "breached" %}
+        <span class="badge fail">{{ me.breach_count }} breach{{ "es" if me.breach_count != 1 else "" }}</span>
+      {% elif me.status == "clean" %}
+        <span class="badge pass">Not found</span>
+      {% elif me.status == "no_key" or not hibp_configured %}
+        <span class="badge muted-badge">API key needed</span>
+      {% elif me.status == "invalid_key" %}
+        <span class="badge warn">Invalid API key</span>
+      {% elif me.status == "rate_limited" %}
+        <span class="badge warn">Rate limited</span>
+      {% elif me.status == "pending" %}
+        <span class="badge muted-badge">Pending check</span>
+      {% else %}
+        <span class="badge muted-badge">Unknown</span>
+      {% endif %}
+      {% if me.last_check_at %}
+        <span class="breach-checked-at">Checked {{ me.last_check_at.strftime("%d %b %H:%M") }}</span>
+      {% endif %}
+    </div>
+    {% if me.status == "breached" and me._breaches_list %}
+    <div class="breach-names">
+      {% for name in me._breaches_list %}
+        <span class="breach-name-chip">{{ name }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% if not readonly %}
+    <button class="breach-email-delete"
+            hx-delete="/breach/emails/{{ me.id }}"
+            hx-target="#breach-email-list"
+            hx-swap="innerHTML"
+            hx-confirm="Remove {{ me.email }} from monitoring?"
+            title="Remove">×</button>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<p class="empty-state" style="margin:0">No email addresses added yet.</p>
+{% endif %}

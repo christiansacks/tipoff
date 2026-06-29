@@ -1,0 +1,56 @@
+{% if hosts %}
+<div class="host-grid">
+  {% for host in hosts %}
+  <div class="host-card {{ 'flagged' if host.flagged and not host.acknowledged else 'acknowledged' if host.flagged and host.acknowledged else '' }}">
+    <div class="host-header">
+      <a href="/host/{{ host.id }}" class="host-ip">{{ host.ip }}</a>
+      <div class="host-header-right">
+        {% if host.flagged and host.acknowledged %}
+          <span class="badge ack">✓ Ack'd</span>
+        {% elif host.flagged %}
+          <span class="badge fail">! Flagged</span>
+        {% else %}
+          <span class="badge pass">OK</span>
+        {% endif %}
+        {% if not readonly %}
+        <a href="/hosts/{{ host.id }}/rescan" class="host-rescan" title="Rescan this host"
+           hx-post="/hosts/{{ host.id }}/rescan"
+           hx-target="main"
+           hx-swap="innerHTML">↺</a>
+        <button class="host-delete"
+                hx-delete="/hosts/{{ host.id }}"
+                hx-target="closest .host-card"
+                hx-swap="outerHTML"
+                hx-confirm="Remove {{ host.ip }}?">×</button>
+        {% endif %}
+      </div>
+    </div>
+    {% if host.hostname %}
+      <div class="host-name">{{ host.hostname }}</div>
+    {% endif %}
+    <div class="host-meta">
+      {% if host.vendor and host.vendor != "Unknown" %}<span>{{ host.vendor }}</span>{% endif %}
+      {% if host.os_guess and host.os_guess != "Unknown" %}<span>{{ host.os_guess }}</span>{% endif %}
+      {% if host.mac %}<span class="mac">{{ host.mac }}</span>{% endif %}
+    </div>
+    {% if host.open_ports %}
+    <div class="port-list">
+      {% for p in host.open_ports %}
+        <span class="port {{ 'dangerous' if p.dangerous else '' }}">
+          {{ p.port }}/{{ p.service }}
+        </span>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <div class="host-footer">
+      <span class="agent-status">
+        {% if host.agent_installed %}Agent: active{% else %}No agent{% endif %}
+      </span>
+      <span class="last-seen">Seen: {{ host.last_seen.strftime("%d %b %H:%M") }}</span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<p class="empty-state">No hosts discovered yet. Enter your network range above and click Auto-Discover.</p>
+{% endif %}

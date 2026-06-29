@@ -1,0 +1,49 @@
+{% if hosts %}
+<table class="host-table" id="host-table">
+  <thead>
+    <tr>
+      <th data-col="ip">IP <span class="sort-icon">↕</span></th>
+      <th data-col="hostname">Hostname <span class="sort-icon">↕</span></th>
+      <th data-col="vendor">Vendor <span class="sort-icon">↕</span></th>
+      <th data-col="ports">Ports</th>
+      <th data-col="status">Status <span class="sort-icon">↕</span></th>
+      <th data-col="seen">Last Seen <span class="sort-icon">↕</span></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for host in hosts %}
+    <tr class="host-table-row {{ 'flagged' if host.flagged and not host.acknowledged else 'acknowledged' if host.flagged and host.acknowledged else '' }}"
+        data-ip="{{ host.ip }}"
+        data-hostname="{{ host.hostname or '' }}"
+        data-vendor="{{ host.vendor or '' }}"
+        data-status="{{ 'acknowledged' if host.flagged and host.acknowledged else 'flagged' if host.flagged else 'ok' }}"
+        data-seen="{{ host.last_seen.strftime('%Y%m%d%H%M') }}"
+        onclick="window.location='/host/{{ host.id }}'"
+        style="cursor:pointer">
+      <td class="mono">{{ host.ip }}</td>
+      <td>{{ host.hostname or '—' }}</td>
+      <td>{{ host.vendor if host.vendor and host.vendor != 'Unknown' else '—' }}</td>
+      <td>
+        {% for p in host.open_ports %}
+          <span class="port {{ 'dangerous' if p.dangerous else '' }}">{{ p.port }}/{{ p.service }}</span>
+        {% else %}
+          <span class="muted-text">none detected</span>
+        {% endfor %}
+      </td>
+      <td>
+        {% if host.flagged and host.acknowledged %}
+          <span class="badge ack">✓ Ack'd</span>
+        {% elif host.flagged %}
+          <span class="badge fail">Flagged</span>
+        {% else %}
+          <span class="badge pass">OK</span>
+        {% endif %}
+      </td>
+      <td class="muted-text">{{ host.last_seen.strftime("%d %b %H:%M") }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty-state">No hosts discovered yet.</p>
+{% endif %}

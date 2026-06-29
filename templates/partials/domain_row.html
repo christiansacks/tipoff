@@ -1,0 +1,42 @@
+{% set scanning = item.domain.last_scan_at is none %}
+{% set status_class = "scanning" if scanning else ("ok" if item.fails == 0 and item.warns == 0 else ("warn" if item.fails == 0 else "fail")) %}
+<div class="domain-row {{ status_class }}">
+  <div class="domain-info">
+    <a href="/domain/{{ item.domain.id }}" class="domain-name">{{ item.domain.hostname }}</a>
+    <span class="domain-meta">
+      {% if scanning %}
+        <span class="scanning-indicator">Scanning…</span>
+      {% else %}
+        Last scanned: {{ item.domain.last_scan_at.strftime("%d %b %Y %H:%M") }}
+      {% endif %}
+    </span>
+  </div>
+  <div class="domain-badges">
+    {% if not scanning %}
+      {% if item.score is not none %}
+        <span class="score score-{{ 'good' if item.score >= 48 else ('ok' if item.score >= 30 else 'bad') }}">
+          {{ item.score }}/60
+        </span>
+      {% endif %}
+      {% if item.fails > 0 %}
+        <span class="badge fail">{{ item.fails }} critical</span>
+      {% endif %}
+      {% if item.warns > 0 %}
+        <span class="badge warn">{{ item.warns }} warnings</span>
+      {% endif %}
+      {% if item.fails == 0 and item.warns == 0 and item.score is not none %}
+        <span class="badge pass">All clear</span>
+      {% endif %}
+    {% endif %}
+  </div>
+  {% if not readonly %}
+  <div class="domain-actions">
+    <button hx-post="/domains/{{ item.domain.id }}/rescan"
+            hx-target="#toast-container">Rescan</button>
+    <button hx-delete="/domains/{{ item.domain.id }}"
+            hx-target="closest .domain-row"
+            hx-swap="outerHTML"
+            hx-confirm="Remove {{ item.domain.hostname }}?">Remove</button>
+  </div>
+  {% endif %}
+</div>

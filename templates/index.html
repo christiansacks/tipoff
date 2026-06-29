@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header">
+  <h1>Dashboard</h1>
+  {% if not readonly %}
+    {% if license.has_feature("pdf") %}
+      <a href="/report/pdf" class="btn-report">↓ Download PDF Report</a>
+    {% else %}
+      <span class="btn-report btn-report-locked" title="PDF reports require a Pro licence — activate in Settings">↓ PDF Report</span>
+    {% endif %}
+  {% endif %}
+</div>
+
+<!-- ── First-run wizard ────────────────────────────────────────── -->
+<div id="wizard-wrap"
+     hx-get="/partials/wizard"
+     hx-trigger="load, domainAdded from:body"
+     hx-swap="innerHTML"></div>
+
+<!-- ── CE Readiness strip ─────────────────────────────────────── -->
+<a href="/ce" class="ce-strip">
+  <span class="ce-strip-label">Cyber Essentials Readiness</span>
+  <span class="ce-strip-score score-{{ 'good' if ce_pct >= 80 else ('ok' if ce_pct >= 50 else 'bad') }}">{{ ce_pct }}%</span>
+  {% if ce_remaining == 0 %}
+    <span class="ce-strip-status pass-text">All questions answered</span>
+  {% else %}
+    <span class="ce-strip-status">{{ ce_remaining }} question{{ 's' if ce_remaining != 1 }} remaining</span>
+  {% endif %}
+  <span class="ce-strip-arrow">→</span>
+</a>
+
+<!-- ── External Checks ────────────────────────────────────────── -->
+<section class="card collapsible-card">
+  <div class="card-summary" onclick="toggleSection('domains')">
+    <div class="summary-left">
+      <h2>External Checks</h2>
+      <div class="summary-chips">
+        {% if domain_total == 0 %}
+          <span class="summary-chip muted-chip">No domains added</span>
+        {% else %}
+          <span class="summary-chip neutral-chip">{{ domain_total }} domain{{ 's' if domain_total != 1 }}</span>
+          {% if domain_critical > 0 %}
+            <span class="summary-chip fail-chip">{{ domain_critical }} critical</span>
+          {% endif %}
+          {% if domain_warn > 0 %}
+            <span class="summary-chip warn-chip">{{ domain_warn }} warning{{ 's' if domain_warn != 1 }}</span>
+          {% endif %}
+          {% if domain_passing == domain_total %}
+            <span class="summary-chip pass-chip">All passing</span>
+          {% elif domain_passing > 0 %}
+            <span class="summary-chip pass-chip">{{ domain_passing }} passing</span>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+    <span class="summary-chevron" id="chevron-domains">›</span>
+  </div>
+
+  <div class="section-body" id="section-domains">
+    <div class="section-body-inner">
+      {% if not readonly %}
+      <div class="section-toolbar">
+        <form hx-post="/domains/add"
+              hx-target="#toast-container"
+              hx-on::after-request="this.reset(); htmx.trigger(document.body, 'domainAdded')"
+              class="inline-form">
+          <input type="text" name="hostname" placeholder="example.com" required>
+          <button type="submit">Add Domain</button>
+        </form>
+      </div>
+      {% endif %}
+      <div id="domain-list"
+           hx-get="/partials/domains"
+           hx-trigger="load, domainAdded from:body, every 10s"
+           hx-swap="innerHTML">
+        {% for item in domain_data %}
+          {% include "partials/domain_row.html" %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── LAN Hosts ─────────────────────────────────────────────── -->
+<section class="card collapsible-card" id="hosts-section">
+  <div class="card-summary" onclick="toggleSection('hosts')">
+    <div class="summary-left">
+      <h2>LAN Hosts</h2>
+      <div class="summary-chips">
+        {% if host_total == 0 %}
+          <span class="summary-chip muted-chip">No hosts discovered</span>
+        {% else %}
+          <span class="summary-chip neutral-chip">{{ host_total }} host{{ 's' if host_total != 1 }}</span>
+          {% if host_flagged > 0 %}
+            <span class="summary-chip fail-chip">{{ host_flagged }} flagged</span>
+          {% endif %}
+          {% if host_acked > 0 %}
+            <span class="summary-chip warn-chip">{{ host_acked }} acknowledged</span>
+          {% endif %}
+          {% if host_flagged == 0 %}
+            <span class="summary-chip pass-chip">All clear</span>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+    <span class="summary-chevron" id="chevron-hosts">›</span>
+  </div>
+
+  <div class="section-body" id="section-hosts">
+    <div class="section-body-inner">
+      <div class="section-toolbar">
+        <div class="view-toggle">
+          <button class="view-btn active" id="btn-grid" onclick="setView('grid')" title="Grid view">⊞</button>
+          <button class="view-btn" id="btn-list" onclick="setView('list')" title="List view">☰</button>
+        </div>
+        {% if not readonly %}
+        <form hx-post="/discover"
+              hx-target="#host-area"
+              hx-swap="innerHTML"
+              class="inline-form">
+          <input type="text" name="cidr" value="{{ default_cidr }}"
+                 placeholder="192.168.1.0/24, 192.168.0.0/24"
+                 title="Comma-separate multiple ranges"
+                 style="min-width:280px" required>
+          <button type="submit">Auto-Discover</button>
+        </form>
+        {% endif %}
+      </div>
+      <div id="host-area" class="host-area view-grid">
+        <div id="host-grid">{% include "partials/host_grid.html" %}</div>
+        <div id="host-list">{% include "partials/host_list.html" %}</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Breach Monitoring ──────────────────────────────────────── -->
+<section class="card collapsible-card" id="breach-section">
+  <div class="card-summary" onclick="toggleSection('breach')">
+    <div class="summary-left">
+      <h2>Breach Monitoring</h2>
+      <div class="summary-chips">
+        {% if breach_monitored == 0 %}
+          <span class="summary-chip muted-chip">No emails monitored</span>
+        {% else %}
+          <span class="summary-chip neutral-chip">{{ breach_monitored }} monitored</span>
+          {% if breach_count > 0 %}
+            <span class="summary-chip fail-chip">{{ breach_count }} breached</span>
+          {% else %}
+            <span class="summary-chip pass-chip">No breaches found</span>
+          {% endif %}
+        {% endif %}
+        <span class="summary-chip neutral-chip">Password checker</span>
+      </div>
+    </div>
+    <span class="summary-chevron" id="chevron-breach">›</span>
+  </div>
+
+  <div class="section-body" id="section-breach">
+    <div class="section-body-inner">
+      {% if not readonly %}
+      <div class="section-toolbar">
+        <form hx-post="/breach/emails"
+              hx-target="#breach-email-list"
+              hx-swap="innerHTML"
+              hx-on::after-request="this.reset()"
+              class="inline-form">
+          <input type="email" name="email" placeholder="staff@example.com" required>
+          <button type="submit">Monitor</button>
+        </form>
+        <button hx-post="/breach/check"
+                hx-target="#toast-container"
+                class="btn-secondary">Check now</button>
+      </div>
+      {% endif %}
+
+      <div id="breach-email-list"
+           hx-get="/partials/breach/emails"
+           hx-trigger="load"
+           hx-swap="innerHTML">
+        <p class="empty-state">Loading…</p>
+      </div>
+
+      <div class="breach-pw-section">
+        <div class="section-label" style="margin-bottom:.6rem">Password Checker</div>
+        <p class="muted" style="margin:0 0 .75rem;font-size:13px">
+          Check if a password appears in known breach dumps.
+          Only a partial hash is sent — the actual password never leaves your server.
+        </p>
+        {% if not readonly %}
+        <form hx-post="/breach/passwords/check"
+              hx-target="#pwned-result"
+              hx-swap="innerHTML"
+              hx-on::after-request="this.querySelector('input[name=password]').value=''"
+              class="inline-form">
+          <input type="password" name="password" placeholder="Enter password to check"
+                 required autocomplete="off" style="min-width:240px">
+          <button type="submit">Check</button>
+        </form>
+        {% endif %}
+        <div id="pwned-result" style="margin-top:.6rem"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // ── Collapsible sections ───────────────────────────────────────
+  function toggleSection(id) {
+    const body    = document.getElementById('section-' + id);
+    const chevron = document.getElementById('chevron-' + id);
+    if (!body) return;
+    const expanded = body.classList.toggle('expanded');
+    if (chevron) chevron.classList.toggle('open', expanded);
+    try { localStorage.setItem('cr-section-' + id, expanded ? '1' : '0'); } catch(e) {}
+  }
+
+  // Restore saved section states
+  ['domains', 'hosts', 'breach'].forEach(function(id) {
+    const val = localStorage.getItem('cr-section-' + id);
+    // Default open if there's flagged/critical content and no saved preference
+    const body    = document.getElementById('section-' + id);
+    const chevron = document.getElementById('chevron-' + id);
+    if (!body) return;
+    let shouldOpen = val === '1';
+    if (val === null) {
+      // auto-open sections with issues on first visit
+      const hasIssue = body.querySelector('.badge.fail, .flagged');
+      shouldOpen = !!hasIssue;
+    }
+    if (shouldOpen) {
+      body.classList.add('expanded');
+      if (chevron) chevron.classList.add('open');
+    }
+  });
+
+  // ── View toggle (grid/list) ────────────────────────────────────
+  function setView(v) {
+    const area = document.getElementById('host-area');
+    if (area) area.className = 'host-area view-' + v;
+    const gb = document.getElementById('btn-grid');
+    const lb = document.getElementById('btn-list');
+    if (gb) gb.classList.toggle('active', v === 'grid');
+    if (lb) lb.classList.toggle('active', v === 'list');
+    localStorage.setItem('hostView', v);
+  }
+  const savedView = localStorage.getItem('hostView');
+  if (savedView) setView(savedView);
+
+  // ── Host table sort ────────────────────────────────────────────
+  function applySort(col, dir) {
+    const table = document.getElementById('host-table');
+    if (!table) return;
+    const th    = table.querySelector(`th[data-col="${col}"]`);
+    if (!th) return;
+    const tbody = table.querySelector('tbody');
+    const rows  = Array.from(tbody.querySelectorAll('tr'));
+    const asc   = dir === 'asc';
+    th.dataset.dir = dir;
+    table.querySelectorAll('th').forEach(h => {
+      const icon = h.querySelector('.sort-icon');
+      if (icon) icon.textContent = '↕';
+    });
+    const activeIcon = th.querySelector('.sort-icon');
+    if (activeIcon) activeIcon.textContent = asc ? '↑' : '↓';
+    rows.sort((a, b) => {
+      const av = a.dataset[col] || '';
+      const bv = b.dataset[col] || '';
+      return asc ? av.localeCompare(bv, undefined, {numeric: true})
+                 : bv.localeCompare(av, undefined, {numeric: true});
+    });
+    rows.forEach(r => tbody.appendChild(r));
+  }
+  function restoreSort() {
+    const pref = JSON.parse(localStorage.getItem('hostSortPref') || 'null');
+    if (pref) applySort(pref.col, pref.dir);
+  }
+  document.addEventListener('click', function(e) {
+    const th = e.target.closest('th[data-col]');
+    if (!th) return;
+    const col = th.dataset.col;
+    const asc = th.dataset.dir !== 'asc';
+    localStorage.setItem('hostSortPref', JSON.stringify({col, dir: asc ? 'asc' : 'desc'}));
+    applySort(col, asc ? 'asc' : 'desc');
+  });
+  document.addEventListener('htmx:afterSwap', function(e) {
+    if (e.detail.target && e.detail.target.id === 'host-area') restoreSort();
+  });
+  restoreSort();
+</script>
+
+{% endblock %}

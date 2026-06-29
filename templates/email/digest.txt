@@ -1,0 +1,40 @@
+CyberReady — Weekly Security Digest
+{{ generated_at }}
+{{ '=' * 60 }}
+
+  Domains checked:  {{ domain_data|length }}
+  Domains passing:  {{ domain_passes }}/{{ domain_data|length }}
+  Hosts flagged:    {{ flagged_hosts|length }}
+  Total hosts:      {{ total_hosts }}
+
+DOMAIN CHECKS
+{{ '-' * 40 }}
+{% for item in domain_data %}
+{% set score = item.score %}
+{{ item.domain.hostname }}  [{{ score }}/60]
+{% if item.fails == 0 and item.warns == 0 %}  All checks passing.
+{% else %}{% for r in item.results %}{% if r.status in ('fail', 'warn') %}  [{{ r.status|upper }}] {{ r.title }}
+         {{ r.detail }}
+{% endif %}{% endfor %}{% endif %}
+{% endfor %}
+{% if flagged_hosts %}
+FLAGGED HOSTS REQUIRING ATTENTION
+{{ '-' * 40 }}
+{% for host in flagged_hosts %}
+  {{ host.ip }}{% if host.vendor and host.vendor != 'Unknown' %}  ({{ host.vendor }}){% endif %}
+
+{% for p in host.open_ports %}{% if p.dangerous %}    ! {{ p.port }}/{{ p.service }}
+{% endif %}{% endfor %}
+{% endfor %}
+{% endif %}
+{% if acknowledged_hosts %}
+ACKNOWLEDGED RISKS
+{{ '-' * 40 }}
+{% for host in acknowledged_hosts %}  {{ host.ip }}{% if host.ack_note %}  — {{ host.ack_note }}{% endif %}
+
+{% endfor %}
+{% endif %}
+{{ '=' * 60 }}
+Log in to CyberReady to view the full report or download a PDF.
+
+CyberReady — IT Security Health Monitoring

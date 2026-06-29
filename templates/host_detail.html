@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header">
+  <a href="/" class="back">← Dashboard</a>
+  <h1>{{ host.ip }}</h1>
+  {% if host.flagged and host.acknowledged %}
+    <span class="badge ack">✓ Acknowledged</span>
+  {% elif host.flagged %}
+    <span class="badge fail">! Security concern</span>
+  {% else %}
+    <span class="badge pass">No issues detected</span>
+  {% endif %}
+  {% if not readonly %}
+  <button hx-post="/hosts/{{ host.id }}/rescan"
+          hx-target="main"
+          hx-swap="innerHTML"
+          class="btn-rescan">
+    <span class="rescan-idle">↺ Rescan</span>
+    <span class="rescan-busy htmx-indicator">⟳ Scanning…</span>
+  </button>
+  {% endif %}
+</div>
+
+<!-- ── Basic info ────────────────────────────────────────────────── -->
+<section class="card">
+  <div class="host-info-grid">
+    {% if host.hostname %}
+    <div class="info-row">
+      <span class="info-label">Hostname</span>
+      <span class="info-value">{{ host.hostname }}</span>
+    </div>
+    {% endif %}
+    {% if host.vendor and host.vendor != "Unknown" %}
+    <div class="info-row">
+      <span class="info-label">Vendor</span>
+      <span class="info-value">{{ host.vendor }}</span>
+    </div>
+    {% endif %}
+    {% if host.mac %}
+    <div class="info-row">
+      <span class="info-label">MAC address</span>
+      <span class="info-value mono">{{ host.mac }}</span>
+    </div>
+    {% endif %}
+    {% if host.os_guess and host.os_guess != "Unknown" %}
+    <div class="info-row">
+      <span class="info-label">OS</span>
+      <span class="info-value">{{ host.os_guess }}</span>
+    </div>
+    {% endif %}
+    <div class="info-row">
+      <span class="info-label">Agent</span>
+      <span class="info-value">{{ "Installed" if host.agent_installed else "Not installed" }}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Last seen</span>
+      <span class="info-value">{{ host.last_seen.strftime("%d %b %Y %H:%M") }}</span>
+    </div>
+  </div>
+</section>
+
+<!-- ── Security concerns ─────────────────────────────────────────── -->
+{% if flagged_ports %}
+<section class="card {{ 'card-ack' if host.acknowledged else '' }}">
+  <div class="card-header" style="margin-bottom:0.75rem">
+    <h2 class="section-title {{ 'ack' if host.acknowledged else 'fail' }}" style="margin-bottom:0">
+      {% if host.acknowledged %}✓ Acknowledged Risks{% else %}Security Concerns{% endif %}
+    </h2>
+  </div>
+
+  {% for p in flagged_ports %}
+  <div class="port-detail-row risk-{{ p.risk }} {{ 'risk-acked' if host.acknowledged else '' }}">
+    <div class="port-detail-header">
+      <span class="port-detail-badge">{{ p.port }}/{{ p.display_name }}</span>
+      <span class="risk-badge risk-{{ p.risk }}">{{ p.risk }}</span>
+    </div>
+    <p class="port-detail-desc">{{ p.detail }}</p>
+    {% if p.remediation and not host.acknowledged %}
+    <div class="port-detail-fix">
+      <strong>Fix:</strong> {{ p.remediation }}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  {% if host.acknowledged %}
+  <!-- acknowledged state -->
+  <div class="ack-status">
+    <div class="ack-status-row">
+      <span class="ack-icon">✓</span>
+      <div>
+        <div class="ack-meta">Acknowledged {{ host.ack_at.strftime("%d %b %Y at %H:%M") }}</div>
+        {% if host.ack_note %}<div class="ack-note">"{{ host.ack_note }}"</div>{% endif %}
+      </div>
+    </div>
+    {% if not readonly %}
+    <button hx-delete="/hosts/{{ host.id }}/acknowledge"
+            hx-target="main"
+            hx-swap="innerHTML"
+            hx-confirm="Remove acknowledgement?"
+            class="btn-unack">Remove acknowledgement</button>
+    {% endif %}
+  </div>
+
+  {% elif not readonly %}
+  <!-- acknowledge form -->
+  <form hx-post="/hosts/{{ host.id }}/acknowledge"
+        hx-target="main"
+        hx-swap="innerHTML"
+        class="ack-form">
+    <div class="field">
+      <label>Note <span class="muted">(optional — describe why this risk is accepted)</span></label>
+      <input type="text" name="ack_note"
+             placeholder="e.g. Pi-Star DMR hotspot — Samba required, internal network only">
+    </div>
+    <button type="submit" class="btn-ack">Mark as Acknowledged</button>
+  </form>
+  {% endif %}
+</section>
+{% endif %}
+
+<!-- ── All open ports ────────────────────────────────────────────── -->
+{% if ports %}
+<section class="card">
+  <h2 class="section-title {{ 'ack' if host.acknowledged and flagged_ports else 'fail' if flagged_ports else 'pass' }}">Open Ports</h2>
+  {% for p in ports %}
+  <div class="port-detail-row risk-{{ p.risk }}">
+    <div class="port-detail-header">
+      <span class="port-detail-badge">{{ p.port }}/{{ p.display_name }}</span>
+      {% if p.risk not in ("info", "low") %}
+        <span class="risk-badge risk-{{ p.risk }}">{{ p.risk }}</span>
+      {% else %}
+        <span class="risk-badge risk-ok">ok</span>
+      {% endif %}
+      {% if p.version %}
+        <span class="port-version">{{ p.version }}</span>
+      {% endif %}
+    </div>
+    {% if p.description %}
+      <p class="port-detail-desc">{{ p.description }}</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</section>
+{% else %}
+<section class="card">
+  <p class="empty-state">No open ports detected on scanned ports.</p>
+</section>
+{% endif %}
+
+{% endblock %}

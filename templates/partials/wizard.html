@@ -1,0 +1,96 @@
+{% if step == "done" %}
+<div class="wizard-done" id="wizard-container">
+  <span class="wizard-done-icon">✓</span>
+  <span>You're all set — CyberReady is scanning your domain and network.</span>
+  <a href="/ce" class="wizard-ce-link">Check your Cyber Essentials readiness →</a>
+</div>
+
+{% elif step == 1 %}
+<div class="wizard-card" id="wizard-container">
+  <div class="wizard-header">
+    <div>
+      <div class="wizard-title">Welcome to CyberReady</div>
+      <div class="wizard-subtitle">Let's get you set up in two quick steps.</div>
+    </div>
+    <button class="wizard-skip"
+            hx-post="/wizard/dismiss"
+            hx-target="#wizard-wrap"
+            hx-swap="innerHTML">Skip setup</button>
+  </div>
+
+  <div class="wizard-steps">
+    <div class="wizard-step active">
+      <span class="wizard-step-num">1</span>
+      <span>Add a domain</span>
+    </div>
+    <div class="wizard-step-connector"></div>
+    <div class="wizard-step inactive">
+      <span class="wizard-step-num">2</span>
+      <span>Scan your network</span>
+    </div>
+  </div>
+
+  <p class="wizard-desc">
+    Enter your company website or any domain you want to monitor — CyberReady will check
+    its SSL certificate, email security (SPF, DMARC, DKIM), security headers, and more.
+  </p>
+
+  <form hx-post="/domains/add"
+        hx-target="#toast-container"
+        hx-on::after-request="if(event.detail.successful){htmx.trigger(document.body,'domainAdded')}"
+        class="wizard-form">
+    <input type="text" name="hostname"
+           placeholder="example.com"
+           class="wizard-input"
+           required autofocus>
+    <button type="submit" class="wizard-btn">Add domain &amp; scan →</button>
+  </form>
+</div>
+
+{% elif step == 2 %}
+<div class="wizard-card" id="wizard-container"
+     hx-get="/partials/wizard"
+     hx-trigger="every 4s"
+     hx-target="#wizard-wrap"
+     hx-swap="innerHTML">
+  <div class="wizard-header">
+    <div>
+      <div class="wizard-title">Almost there — one more step</div>
+      <div class="wizard-subtitle">Your domain scan is running in the background.</div>
+    </div>
+    <button class="wizard-skip"
+            hx-post="/wizard/dismiss"
+            hx-target="#wizard-wrap"
+            hx-swap="innerHTML">Do this later</button>
+  </div>
+
+  <div class="wizard-steps">
+    <div class="wizard-step done">
+      <span class="wizard-step-num">✓</span>
+      <span>Domain added</span>
+    </div>
+    <div class="wizard-step-connector done"></div>
+    <div class="wizard-step active">
+      <span class="wizard-step-num">2</span>
+      <span>Scan your network</span>
+    </div>
+  </div>
+
+  <p class="wizard-desc">
+    Discover all devices on your LAN — CyberReady will identify each host, check for
+    dangerous open ports, and flag anything that needs attention.
+  </p>
+
+  <form hx-post="/discover"
+        hx-target="#host-area"
+        hx-swap="innerHTML"
+        class="wizard-form">
+    <input type="text" name="cidr"
+           value="{{ default_cidr }}"
+           placeholder="192.168.1.0/24"
+           class="wizard-input"
+           required>
+    <button type="submit" class="wizard-btn">Discover hosts →</button>
+  </form>
+</div>
+{% endif %}

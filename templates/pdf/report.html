@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {
+    size: A4;
+    margin: 15mm 15mm 20mm 15mm;
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-size: 9px;
+      color: #9ca3af;
+      font-family: 'Liberation Sans', Arial, sans-serif;
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Liberation Sans', Arial, sans-serif;
+    font-size: 11px;
+    color: #1f2937;
+    line-height: 1.5;
+    background: white;
+  }
+
+  /* ── Cover ── */
+  .cover {
+    page-break-after: always;
+    padding-bottom: 20px;
+  }
+  .cover-top {
+    background: #1a1d27;
+    color: white;
+    padding: 40px;
+    border-radius: 0 0 8px 8px;
+  }
+  .cover-logo { font-size: 28px; font-weight: 700; color: #6366f1; letter-spacing: -0.03em; }
+  .cover-title { font-size: 20px; font-weight: 300; color: #e2e4ed; margin-top: 6px; }
+  .cover-date { font-size: 11px; color: #6b7280; margin-top: 8px; }
+
+  .cover-summary {
+    display: flex;
+    gap: 16px;
+    padding: 60px 40px 40px 40px;
+    flex-wrap: wrap;
+  }
+  .summary-card {
+    flex: 1;
+    min-width: 120px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+  }
+  .summary-number { font-size: 32px; font-weight: 700; }
+  .summary-label  { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px; }
+  .summary-number.green  { color: #16a34a; }
+  .summary-number.amber  { color: #d97706; }
+  .summary-number.red    { color: #dc2626; }
+  .summary-number.purple { color: #6366f1; }
+
+  .cover-bottom {
+    padding: 24px 40px;
+    border-top: 1px solid #e5e7eb;
+    font-size: 10px;
+    color: #9ca3af;
+  }
+
+  /* ── Section headings ── */
+  .section-header {
+    background: #f8fafc;
+    border-left: 4px solid #6366f1;
+    padding: 10px 14px;
+    margin: 20px 0 12px 0;
+    page-break-after: avoid;
+  }
+  .section-header h2 {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1f2937;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .section-header p { font-size: 10px; color: #6b7280; margin-top: 2px; }
+
+  /* ── Domain card ── */
+  .domain-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    margin-bottom: 14px;
+    page-break-inside: avoid;
+    overflow: hidden;
+  }
+  .domain-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .domain-name { font-size: 13px; font-weight: 600; }
+  .domain-score {
+    font-size: 13px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 4px;
+  }
+  .score-good { background: #dcfce7; color: #16a34a; }
+  .score-ok   { background: #fef9c3; color: #b45309; }
+  .score-bad  { background: #fee2e2; color: #dc2626; }
+
+  .domain-checks { padding: 8px 14px; }
+  .check-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 5px 0;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  .check-row:last-child { border-bottom: none; }
+  .check-icon {
+    font-size: 9px;
+    font-weight: 700;
+    width: 28px;
+    flex-shrink: 0;
+    margin-top: 1px;
+    padding: 1px 3px;
+    border-radius: 3px;
+    text-align: center;
+    letter-spacing: 0.03em;
+  }
+  .check-icon.pass { background: #dcfce7; color: #16a34a; }
+  .check-icon.warn { background: #fef9c3; color: #b45309; }
+  .check-icon.fail { background: #fee2e2; color: #dc2626; }
+  .check-icon.info { background: #f3f4f6; color: #6b7280; }
+  .check-body { flex: 1; }
+  .check-title { font-weight: 600; font-size: 10.5px; }
+  .check-detail { font-size: 10px; color: #6b7280; margin-top: 1px; }
+  .check-fix {
+    font-size: 10px;
+    color: #374151;
+    background: #eff6ff;
+    border-radius: 3px;
+    padding: 3px 7px;
+    margin-top: 4px;
+  }
+
+  /* ── Host table ── */
+  .host-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+    margin-bottom: 16px;
+  }
+  .host-table th {
+    text-align: left;
+    padding: 6px 8px;
+    background: #f3f4f6;
+    border-bottom: 2px solid #d1d5db;
+    font-weight: 600;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #6b7280;
+  }
+  .host-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid #f3f4f6;
+    vertical-align: top;
+  }
+  .host-table tr:last-child td { border-bottom: none; }
+  .host-table tr.flagged { background: #fff7f7; }
+  .host-table tr.acknowledged { background: #fafafa; color: #6b7280; }
+
+  .badge {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .badge-pass { background: #dcfce7; color: #16a34a; }
+  .badge-fail { background: #fee2e2; color: #dc2626; }
+  .badge-ack  { background: #f3f4f6; color: #6b7280; }
+
+  .port-chip {
+    display: inline-block;
+    font-size: 9px;
+    font-family: monospace;
+    background: #f3f4f6;
+    border-radius: 3px;
+    padding: 1px 4px;
+    margin: 1px 2px 1px 0;
+  }
+  .port-chip.dangerous { background: #fee2e2; color: #dc2626; }
+
+  /* ── Flagged detail boxes ── */
+  .flag-box {
+    border: 1px solid #fecaca;
+    border-left: 4px solid #dc2626;
+    border-radius: 4px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    background: #fff7f7;
+    page-break-inside: avoid;
+  }
+  .flag-box.acked {
+    border-color: #d1d5db;
+    border-left-color: #9ca3af;
+    background: #fafafa;
+  }
+  .flag-box-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .flag-ip { font-weight: 700; font-size: 12px; font-family: monospace; }
+  .flag-port { font-size: 10px; margin: 3px 0; }
+  .flag-port-name { font-weight: 600; color: #dc2626; }
+  .flag-port-name.acked { color: #9ca3af; }
+  .flag-detail { font-size: 10px; color: #4b5563; margin: 4px 0; }
+  .flag-fix { font-size: 10px; color: #374151; background: #eff6ff; border-radius: 3px; padding: 4px 8px; margin-top: 6px; }
+  .ack-note { font-size: 10px; color: #6b7280; font-style: italic; margin-top: 6px; padding-top: 6px; border-top: 1px solid #e5e7eb; }
+
+  /* ── Footer note ── */
+  .report-footer {
+    margin-top: 24px;
+    padding-top: 12px;
+    border-top: 1px solid #e5e7eb;
+    font-size: 9px;
+    color: #9ca3af;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<!-- ══ COVER PAGE ══════════════════════════════════════════════════ -->
+<div class="cover">
+  <div class="cover-top">
+    <div class="cover-logo">CyberReady</div>
+    <div class="cover-title">IT Security Health Report</div>
+    <div class="cover-date">Generated {{ generated_at }}</div>
+  </div>
+
+  <div class="cover-summary">
+    <div class="summary-card">
+      <div class="summary-number purple">{{ domains|length }}</div>
+      <div class="summary-label">Domain{{ 's' if domains|length != 1 else '' }} Checked</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-number {{ 'green' if domain_passes == domains|length else 'amber' }}">{{ domain_passes }}/{{ domains|length }}</div>
+      <div class="summary-label">Domains Passing</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-number {{ 'green' if flagged_count == 0 else 'red' }}">{{ flagged_count }}</div>
+      <div class="summary-label">Hosts Flagged</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-number {{ 'green' if acked_count == 0 else 'amber' }}">{{ acked_count }}</div>
+      <div class="summary-label">Risks Acknowledged</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-number purple">{{ hosts|length }}</div>
+      <div class="summary-label">Hosts Discovered</div>
+    </div>
+  </div>
+
+  <div class="cover-bottom">
+    Report produced by CyberReady &nbsp;·&nbsp; Confidential &nbsp;·&nbsp; {{ generated_at }}
+  </div>
+</div>
+
+<!-- ══ DOMAIN SECURITY CHECKS ═════════════════════════════════════ -->
+<div class="section-header">
+  <h2>Domain Security Checks</h2>
+  <p>External checks covering SSL certificates, DNS email security (SPF/DMARC/DKIM), and HTTP security headers.</p>
+</div>
+
+{% for item in domains %}
+{% set score = item.score %}
+{% set score_class = 'score-good' if score and score >= 50 else 'score-ok' if score and score >= 30 else 'score-bad' %}
+<div class="domain-card">
+  <div class="domain-header">
+    <span class="domain-name">{{ item.domain.hostname }}</span>
+    <span class="domain-score {{ score_class }}">
+      {{ score }}/60{% if not score %} — scanning{% endif %}
+    </span>
+  </div>
+  <div class="domain-checks">
+    {% for r in item.results %}
+    <div class="check-row">
+      <span class="check-icon {{ r.status }}">
+        {% if r.status == 'pass' %}OK{% elif r.status == 'warn' %}WARN{% elif r.status == 'fail' %}FAIL{% else %}INFO{% endif %}
+      </span>
+      <div class="check-body">
+        <div class="check-title">{{ r.title }}</div>
+        {% if r.status != 'pass' %}
+          <div class="check-detail">{{ r.detail }}</div>
+          {% if r.remediation %}
+          <div class="check-fix">Fix: {{ r.remediation }}</div>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+    {% if not item.results %}
+    <div class="check-row"><span class="check-detail">Scan pending — no results yet.</span></div>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+
+<!-- ══ LAN HOST INVENTORY ══════════════════════════════════════════ -->
+<div class="section-header" style="page-break-before: always;">
+  <h2>LAN Host Inventory</h2>
+  <p>{{ hosts|length }} host{{ 's' if hosts|length != 1 else '' }} discovered.
+  {% if flagged_count > 0 %}{{ flagged_count }} flagged{% if acked_count > 0 %}, {{ acked_count }} acknowledged{% endif %}.{% endif %}</p>
+</div>
+
+<table class="host-table">
+  <thead>
+    <tr>
+      <th>IP Address</th>
+      <th>Hostname</th>
+      <th>Vendor / OS</th>
+      <th>Open Ports</th>
+      <th>Status</th>
+      <th>Last Seen</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for host in hosts %}
+    <tr class="{{ 'acknowledged' if host.flagged and host.acknowledged else 'flagged' if host.flagged else '' }}">
+      <td style="font-family:monospace;font-weight:600">{{ host.ip }}</td>
+      <td>{{ host.hostname or '—' }}</td>
+      <td>
+        {% if host.vendor and host.vendor != 'Unknown' %}{{ host.vendor }}{% endif %}
+        {% if host.os_guess and host.os_guess != 'Unknown' %}<br><span style="color:#6b7280">{{ host.os_guess }}</span>{% endif %}
+        {% if not (host.vendor and host.vendor != 'Unknown') and not (host.os_guess and host.os_guess != 'Unknown') %}—{% endif %}
+      </td>
+      <td>
+        {% for p in host.open_ports %}
+          <span class="port-chip {{ 'dangerous' if p.dangerous else '' }}">{{ p.port }}/{{ p.service }}</span>
+        {% else %}—{% endfor %}
+      </td>
+      <td>
+        {% if host.flagged and host.acknowledged %}
+          <span class="badge badge-ack">Ack'd</span>
+        {% elif host.flagged %}
+          <span class="badge badge-fail">Flagged</span>
+        {% else %}
+          <span class="badge badge-pass">OK</span>
+        {% endif %}
+      </td>
+      <td style="color:#6b7280">{{ host.last_seen.strftime("%d %b %Y") }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<!-- ══ SECURITY CONCERNS DETAIL ═══════════════════════════════════ -->
+{% set flagged_hosts = hosts | selectattr('flagged') | list %}
+{% if flagged_hosts %}
+<div class="section-header">
+  <h2>Security Concerns Detail</h2>
+  <p>Detailed breakdown of flagged hosts and recommended remediation steps.</p>
+</div>
+
+{% for host in flagged_hosts %}
+<div class="flag-box {{ 'acked' if host.acknowledged else '' }}">
+  <div class="flag-box-header">
+    <span class="flag-ip">{{ host.ip }}</span>
+    {% if host.acknowledged %}
+      <span class="badge badge-ack">Acknowledged</span>
+    {% else %}
+      <span class="badge badge-fail">Action Required</span>
+    {% endif %}
+  </div>
+  {% if host.hostname %}<div style="font-size:10px;color:#6b7280;margin-bottom:4px">{{ host.hostname }}</div>{% endif %}
+
+  {% for p in host.open_ports %}{% if p.dangerous %}
+  <div class="flag-port">
+    <span class="flag-port-name {{ 'acked' if host.acknowledged else '' }}">{{ p.port }}/{{ p.service }}</span>
+    {% if port_info[p.port] is defined %}
+      — {{ port_info[p.port].description }}
+      {% if not host.acknowledged and port_info[p.port].remediation %}
+      <div class="flag-fix">Fix: {{ port_info[p.port].remediation }}</div>
+      {% endif %}
+    {% endif %}
+  </div>
+  {% endif %}{% endfor %}
+
+  {% if host.acknowledged and host.ack_note %}
+  <div class="ack-note">Acknowledged: "{{ host.ack_note }}"
+    {% if host.ack_at %} — {{ host.ack_at.strftime("%d %b %Y") }}{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
+<div class="report-footer">
+  This report was generated automatically by CyberReady. It reflects a point-in-time snapshot and should be reviewed alongside a qualified IT security professional.
+</div>
+
+</body>
+</html>

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:system-ui,-apple-system,Arial,sans-serif;color:#1f2937">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 16px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+
+  <!-- Header -->
+  <tr>
+    <td style="background:#1a1d27;padding:24px 32px">
+      <span style="font-size:20px;font-weight:700;color:#6366f1;letter-spacing:-0.02em">CyberReady</span>
+      <p style="margin:4px 0 0 0;font-size:12px;color:#9ca3af">Security Alert &mdash; {{ generated_at }}</p>
+    </td>
+  </tr>
+
+  <!-- Alert banner -->
+  <tr>
+    <td style="background:#fef2f2;border-left:4px solid #dc2626;padding:14px 32px">
+      <span style="font-size:14px;font-weight:600;color:#dc2626">
+        {{ domain_issues|length + flagged_hosts|length }} new issue{{ 's' if (domain_issues|length + flagged_hosts|length) != 1 else '' }} found on your network
+      </span>
+    </td>
+  </tr>
+
+  <!-- Domain issues -->
+  {% if domain_issues %}
+  <tr>
+    <td style="padding:24px 32px 0 32px">
+      <p style="font-size:13px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 12px 0">Domain Issues</p>
+      {% for item in domain_issues %}
+      <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #fecaca;border-radius:6px;margin-bottom:12px;overflow:hidden">
+        <tr>
+          <td style="background:#fef9f9;padding:10px 16px;border-bottom:1px solid #fecaca">
+            <span style="font-size:14px;font-weight:700;color:#1f2937">{{ item.domain.hostname }}</span>
+          </td>
+        </tr>
+        {% for r in item.results %}
+        <tr>
+          <td style="padding:8px 16px;border-bottom:1px solid #f9f9f9">
+            <span style="display:inline-block;background:#fee2e2;color:#dc2626;font-size:10px;font-weight:700;padding:2px 6px;border-radius:3px;margin-right:8px">FAIL</span>
+            <span style="font-size:13px;font-weight:600">{{ r.title }}</span>
+            <p style="font-size:12px;color:#6b7280;margin:3px 0 0 0">{{ r.detail }}</p>
+            {% if r.remediation %}
+            <p style="font-size:12px;color:#374151;background:#eff6ff;padding:4px 8px;border-radius:3px;margin:6px 0 0 0"><strong>Fix:</strong> {{ r.remediation }}</p>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% endfor %}
+    </td>
+  </tr>
+  {% endif %}
+
+  <!-- Flagged hosts -->
+  {% if flagged_hosts %}
+  <tr>
+    <td style="padding:24px 32px 0 32px">
+      <p style="font-size:13px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 12px 0">Newly Flagged Hosts</p>
+      {% for host in flagged_hosts %}
+      <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #fecaca;border-radius:6px;margin-bottom:12px">
+        <tr>
+          <td style="padding:10px 16px">
+            <span style="font-family:monospace;font-size:13px;font-weight:700">{{ host.ip }}</span>
+            {% if host.vendor and host.vendor != 'Unknown' %}
+            <span style="font-size:12px;color:#6b7280;margin-left:8px">{{ host.vendor }}</span>
+            {% endif %}
+            <div style="margin-top:6px">
+              {% for p in host.open_ports %}{% if p.dangerous %}
+              <span style="display:inline-block;background:#fee2e2;color:#dc2626;font-family:monospace;font-size:11px;padding:2px 6px;border-radius:3px;margin:2px 2px 0 0">{{ p.port }}/{{ p.service }}</span>
+              {% endif %}{% endfor %}
+            </div>
+          </td>
+        </tr>
+      </table>
+      {% endfor %}
+    </td>
+  </tr>
+  {% endif %}
+
+  <!-- CTA -->
+  <tr>
+    <td style="padding:24px 32px">
+      <p style="font-size:13px;color:#6b7280;margin:0">Log in to CyberReady to review these issues, apply remediation steps, or acknowledge known risks.</p>
+    </td>
+  </tr>
+
+  <!-- Footer -->
+  <tr>
+    <td style="padding:16px 32px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center">
+      CyberReady &mdash; IT Security Health Monitoring &mdash; This alert was generated automatically.
+    </td>
+  </tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>

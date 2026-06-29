@@ -1,0 +1,5 @@
+{% for item in domain_data %}
+  {% include "partials/domain_row.html" %}
+{% else %}
+  <p class="empty-state">No domains added yet. Enter a domain above to start scanning.</p>
+{% endfor %}

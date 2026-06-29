@@ -1,0 +1,33 @@
+CyberReady — Security Alert
+{{ generated_at }}
+{{ '=' * 60 }}
+
+{{ domain_issues|length + flagged_hosts|length }} new issue{{ 's' if (domain_issues|length + flagged_hosts|length) != 1 else '' }} found on your network.
+
+{% if domain_issues %}
+DOMAIN ISSUES
+{{ '-' * 40 }}
+{% for item in domain_issues %}
+{{ item.domain.hostname }}
+{% for r in item.results %}
+  [FAIL] {{ r.title }}
+         {{ r.detail }}
+{% if r.remediation %}         Fix: {{ r.remediation }}
+{% endif %}
+{% endfor %}
+{% endfor %}
+{% endif %}
+{% if flagged_hosts %}
+NEWLY FLAGGED HOSTS
+{{ '-' * 40 }}
+{% for host in flagged_hosts %}
+  {{ host.ip }}{% if host.vendor and host.vendor != 'Unknown' %}  ({{ host.vendor }}){% endif %}
+
+{% for p in host.open_ports %}{% if p.dangerous %}    ! {{ p.port }}/{{ p.service }}
+{% endif %}{% endfor %}
+{% endfor %}
+{% endif %}
+{{ '=' * 60 }}
+Log in to CyberReady to review these issues and apply remediation.
+
+CyberReady — IT Security Health Monitoring

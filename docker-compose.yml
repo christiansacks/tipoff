@@ -1,0 +1,19 @@
+services:
+  cyberready:
+    build: .
+    container_name: cyberready
+    network_mode: host          # required for LAN discovery on Linux
+    cap_add:
+      - NET_RAW                 # required for ARP scanning
+      - NET_ADMIN
+    volumes:
+      - cyberready_data:/data   # SQLite DB + certs persist here
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CYBERREADY_USERNAME=admin      # change before going live
+      - CYBERREADY_PASSWORD=admin      # change before going live
+      #- HTTPS=true                    # uncomment to enable HTTPS on port 8443
+
+volumes:
+  cyberready_data:

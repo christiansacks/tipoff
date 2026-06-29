@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header">
+  <a href="/" class="back">← Dashboard</a>
+  <h1>Cyber Essentials Readiness</h1>
+  <span id="overall-score"
+        class="score-large score-{{ 'good' if scores.pct >= 80 else ('ok' if scores.pct >= 50 else 'bad') }}">
+    {{ scores.pct }}%
+  </span>
+</div>
+
+<div class="ce-summary-bar">
+  {% for area in areas %}
+  {% set s = scores.areas[area.id] %}
+  <a href="#{{ area.id }}" class="ce-summary-chip {{ 'ready' if s.ready else ('partial' if s.passed > 0 else '') }}">
+    <span class="ce-summary-name">{{ area.name }}</span>
+    <span id="area-score-{{ area.id }}" class="badge {{ 'pass' if s.ready else ('warn' if s.passed > 0 else 'fail') }}">
+      {{ s.passed }}/{{ s.total }}
+    </span>
+  </a>
+  {% endfor %}
+</div>
+
+{% if not scores.ready %}
+<div class="notice" style="margin-bottom:1.5rem">
+  <strong>{{ scores.total - scores.passed }}</strong> question{{ 's' if (scores.total - scores.passed) != 1 else '' }}
+  still need{{ '' if (scores.total - scores.passed) != 1 else 's' }} a "Yes" answer before you would meet
+  Cyber Essentials requirements. Scroll through the sections below and answer each question.
+  Your progress is saved automatically.
+</div>
+{% else %}
+<div class="notice" style="margin-bottom:1.5rem;border-color:rgba(22,163,74,.4);background:rgba(22,163,74,.06)">
+  All questions answered — your self-assessment indicates readiness for Cyber Essentials certification.
+  Consider engaging an IASME-accredited assessor to proceed with formal certification.
+</div>
+{% endif %}
+
+{% for area in areas %}
+{% set s = scores.areas[area.id] %}
+<section class="card ce-area" id="{{ area.id }}">
+  <div class="card-header">
+    <div>
+      <h2>{{ area.name }}</h2>
+      <p class="muted" style="margin:.25rem 0 0;font-size:13px">{{ area.description }}</p>
+    </div>
+    <span id="area-score-{{ area.id }}" class="badge {{ 'pass' if s.ready else ('warn' if s.passed > 0 else 'fail') }}">
+      {{ s.passed }}/{{ s.total }}
+    </span>
+  </div>
+
+  {% for q in area.questions %}
+  {% set ans = answers.get(q.id, {}) %}
+  {% set current = ans.get('answer', '') %}
+  {% set hints = evidence.get(q.auto_check, []) if q.auto_check else [] %}
+
+  <div class="ce-question {{ 'ce-yes' if current == 'yes' else ('ce-no' if current == 'no' else ('ce-na' if current == 'na' else '')) }}"
+       id="q-{{ q.id }}">
+    <div class="ce-q-header">
+      <span class="ce-q-text">{{ q.text }}</span>
+      {% if hints %}
+      <span class="ce-hint-badge" title="{{ hints|join(', ') }}">⚡ scan evidence</span>
+      {% endif %}
+    </div>
+
+    {% if hints %}
+    <div class="ce-scan-evidence">
+      <strong>CyberReady found:</strong>
+      <ul>{% for h in hints %}<li>{{ h }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+
+    <details class="ce-help">
+      <summary>What does this mean?</summary>
+      <p>{{ q.help }}</p>
+    </details>
+
+    {% if not readonly %}
+    <div class="ce-answers">
+      <button class="ce-btn ce-yes-btn {{ 'active' if current == 'yes' }}"
+              hx-post="/ce/answer"
+              hx-vals='{"question_id": "{{ q.id }}", "answer": "yes"}'
+              hx-target="#area-score-{{ area.id }}"
+              hx-swap="outerHTML"
+              onclick="setAnswer('{{ q.id }}', 'yes', this)">Yes</button>
+      <button class="ce-btn ce-no-btn {{ 'active' if current == 'no' }}"
+              hx-post="/ce/answer"
+              hx-vals='{"question_id": "{{ q.id }}", "answer": "no"}'
+              hx-target="#area-score-{{ area.id }}"
+              hx-swap="outerHTML"
+              onclick="setAnswer('{{ q.id }}', 'no', this)">No</button>
+      <button class="ce-btn ce-na-btn {{ 'active' if current == 'na' }}"
+              hx-post="/ce/answer"
+              hx-vals='{"question_id": "{{ q.id }}", "answer": "na"}'
+              hx-target="#area-score-{{ area.id }}"
+              hx-swap="outerHTML"
+              onclick="setAnswer('{{ q.id }}', 'na', this)">N/A</button>
+    </div>
+
+    {% if current == 'no' %}
+    <div class="ce-remediation">
+      <strong>Remediation:</strong> {{ q.remediation }}
+    </div>
+    {% endif %}
+
+    <div class="ce-note-row {{ 'visible' if ans.get('note') or current == 'no' }}">
+      <input type="text"
+             class="ce-note-input"
+             placeholder="Add a note (optional)…"
+             value="{{ ans.get('note', '') }}"
+             hx-post="/ce/note"
+             hx-trigger="change"
+             hx-vals='{"question_id": "{{ q.id }}"}'
+             name="note">
+    </div>
+    {% else %}
+    {% if current %}
+    <div class="ce-answers ce-readonly-answer">
+      <span class="ce-btn {{ 'ce-yes-btn active' if current == 'yes' else ('ce-no-btn active' if current == 'no' else 'ce-na-btn active') }}">
+        {{ current|upper }}
+      </span>
+    </div>
+    {% if current == 'no' %}
+    <div class="ce-remediation">
+      <strong>Remediation:</strong> {{ q.remediation }}
+    </div>
+    {% endif %}
+    {% if ans.get('note') %}
+    <p class="ce-note-display">{{ ans.note }}</p>
+    {% endif %}
+    {% endif %}
+    {% endif %}
+  </div>
+  {% endfor %}
+</section>
+{% endfor %}
+
+{% if not readonly %}
+<script>
+function setAnswer(qid, answer, btn) {
+  const row = document.getElementById('q-' + qid);
+  row.classList.remove('ce-yes','ce-no','ce-na');
+  row.classList.add('ce-' + answer);
+  row.querySelectorAll('.ce-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const noteRow = row.querySelector('.ce-note-row');
+  if (noteRow) noteRow.classList.toggle('visible', answer === 'no' || noteRow.querySelector('input').value);
+}
+</script>
+{% endif %}
+
+{% endblock %}

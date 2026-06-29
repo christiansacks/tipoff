@@ -1,0 +1,23 @@
+<div class="discovery-progress"
+     hx-get="/discover/progress/{{ job_id }}"
+     hx-trigger="every 2s"
+     hx-target="#host-area"
+     hx-swap="innerHTML">
+
+  <div class="progress-header">
+    <span class="scanning-indicator">{{ job.stage }}</span>
+    {% if job.hosts_found %}
+      <span class="progress-count">{{ job.hosts_found }} host{{ 's' if job.hosts_found != 1 else '' }} found</span>
+    {% endif %}
+  </div>
+
+  {% if job.total %}
+  <div class="progress-bar-wrap">
+    <div class="progress-bar">
+      <div class="progress-fill" style="width: {{ [(job.scanned / job.total * 100)|int, 100]|min }}%"></div>
+    </div>
+    <span class="progress-label">{{ job.scanned }}/{{ job.total }}</span>
+  </div>
+  {% endif %}
+
+</div>

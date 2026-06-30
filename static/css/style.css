@@ -179,6 +179,7 @@ button:hover { opacity: 0.85; }
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.85rem;
+  position: relative;
 }
 .host-card.flagged      { border-color: var(--fail); }
 .host-card.acknowledged { border-color: var(--muted); opacity: 0.85; }
@@ -260,16 +261,28 @@ button:hover { opacity: 0.85; }
 .muted-text { color: var(--muted); font-size: 12px; }
 .mono { font-family: monospace; }
 
+.host-card-actions {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  gap: 0.15rem;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.host-card:hover .host-card-actions { opacity: 1; }
+
 .host-delete {
   background: transparent;
   border: none;
   color: var(--muted);
   font-size: 14px;
   line-height: 1;
-  padding: 0 2px;
+  padding: 2px 4px;
   cursor: pointer;
+  border-radius: 3px;
 }
-.host-delete:hover { color: var(--fail); }
+.host-delete:hover { color: var(--fail); background: rgba(239,68,68,.08); }
 
 .host-rescan {
   background: transparent;
@@ -277,11 +290,20 @@ button:hover { opacity: 0.85; }
   color: var(--muted);
   font-size: 13px;
   line-height: 1;
-  padding: 0 2px;
+  padding: 2px 4px;
   cursor: pointer;
   text-decoration: none;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
 }
-.host-rescan:hover { color: var(--accent); }
+.host-rescan:hover { color: var(--accent); background: rgba(99,102,241,.08); }
+
+.host-table-actions { display: flex; gap: 0.25rem; justify-content: flex-end; }
+.host-table-actions .host-rescan,
+.host-table-actions .host-delete { opacity: 0.4; }
+.host-table-row:hover .host-table-actions .host-rescan,
+.host-table-row:hover .host-table-actions .host-delete { opacity: 1; }
 
 .btn-rescan {
   margin-left: auto;

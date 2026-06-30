@@ -15,16 +15,6 @@
         {% else %}
           <span class="badge pass">OK</span>
         {% endif %}
-        {% if not readonly %}
-        <a href="/hosts/{{ host.id }}/rescan" class="host-rescan" title="Rescan this host"
-           hx-post="/hosts/{{ host.id }}/rescan"
-           hx-target="main"
-           hx-swap="innerHTML">↺</a>
-        <button class="host-delete"
-                hx-delete="/hosts/{{ host.id }}"
-                hx-target="closest .host-card"
-                hx-swap="outerHTML"
-                hx-confirm="Remove {{ host.ip }}?">×</button>
         {% endif %}
       </div>
     </div>
@@ -51,6 +41,18 @@
       </span>
       <span class="last-seen">Seen: {{ host.last_seen.strftime("%d %b %H:%M") }}</span>
     </div>
+    {% if not readonly %}
+    <div class="host-card-actions">
+      <a class="host-rescan" title="Rescan"
+         hx-post="/hosts/{{ host.id }}/rescan"
+         hx-target="main" hx-swap="innerHTML">↺</a>
+      <button class="host-delete"
+              hx-delete="/hosts/{{ host.id }}"
+              hx-target="closest .host-card"
+              hx-swap="outerHTML"
+              hx-confirm="Remove {{ host.ip }}?">×</button>
+    </div>
+    {% endif %}
   </div>
   {% endfor %}
 </div>

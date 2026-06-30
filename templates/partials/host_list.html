@@ -8,6 +8,7 @@
       <th data-col="ports">Ports</th>
       <th data-col="status">Status <span class="sort-icon">↕</span></th>
       <th data-col="seen">Last Seen <span class="sort-icon">↕</span></th>
+      {% if not readonly %}<th></th>{% endif %}
     </tr>
   </thead>
   <tbody>
@@ -43,6 +44,20 @@
         {% endif %}
       </td>
       <td class="muted-text">{{ host.last_seen.strftime("%d %b %H:%M") }}</td>
+      {% if not readonly %}
+      <td onclick="event.stopPropagation()">
+        <div class="host-table-actions">
+          <a class="host-rescan" title="Rescan"
+             hx-post="/hosts/{{ host.id }}/rescan"
+             hx-target="main" hx-swap="innerHTML">↺</a>
+          <button class="host-delete"
+                  hx-delete="/hosts/{{ host.id }}"
+                  hx-target="closest tr"
+                  hx-swap="outerHTML"
+                  hx-confirm="Remove {{ host.ip }}?">×</button>
+        </div>
+      </td>
+      {% endif %}
     </tr>
     {% endfor %}
   </tbody>

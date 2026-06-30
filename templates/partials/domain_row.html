@@ -18,6 +18,9 @@
           {{ item.score }}/60
         </span>
       {% endif %}
+      {% if item.domain.is_wordpress %}
+        <span class="badge wp-badge" title="WordPress detected{% if item.domain.wp_version %} (v{{ item.domain.wp_version }}){% endif %}">WP</span>
+      {% endif %}
       {% if item.fails > 0 %}
         <span class="badge fail">{{ item.fails }} critical</span>
       {% endif %}

@@ -59,6 +59,31 @@
   </form>
 </section>
 
+<!-- ── WordPress / WPScan ───────────────────────────────────────── -->
+<section class="card" id="wpscan-settings">
+  <div class="card-header">
+    <h2>WordPress Scanning</h2>
+    {% if wpscan_api_key_set %}<span class="badge pass">WPScan API key configured</span>
+    {% else %}<span class="badge">No API key — basic detection only</span>{% endif %}
+  </div>
+  <p class="muted" style="margin:0 0 1.25rem">
+    TipOff detects WordPress on LAN hosts automatically (free). Adding a WPScan API key
+    enables CVE lookups for WordPress core, plugins and themes (Pro).
+    Get a free key at <strong>wpscan.com</strong> — free tier includes 25 API requests per day.
+  </p>
+  <form hx-post="/settings/wpscan"
+        hx-target="#toast-container"
+        class="settings-form">
+    <div class="field">
+      <label>WPScan API key</label>
+      <input type="password" name="wpscan_api_key"
+             placeholder="{% if wpscan_api_key_set %}Key saved — enter a new one to replace{% else %}Paste your WPScan API key here{% endif %}"
+             autocomplete="off">
+    </div>
+    <button type="submit">Save</button>
+  </form>
+</section>
+
 <!-- ── License ─────────────────────────────────────────────────── -->
 <section class="card" id="license">
   <div class="card-header">

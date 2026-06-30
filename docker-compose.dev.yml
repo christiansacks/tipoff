@@ -1,7 +1,14 @@
 services:
   tipoff:
     build: .                        # build from source in dev
+    ports:
+      - "8080:8080"
     volumes:
       - .:/app                      # live-mount source — changes reload without rebuild
       - tipoff_data:/data
     command: uvicorn main:app --host 0.0.0.0 --port 8080 --reload
+
+volumes:
+  tipoff_data:
+    external: true
+    name: cyberready_tipoff_data

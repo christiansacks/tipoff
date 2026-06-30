@@ -178,7 +178,18 @@ async def _load_dns_settings():
 
 
 # ── HIBP / Breach monitoring ──────────────────────────────────────────────────
-_hibp_api_key: str = ""
+_hibp_api_key:   str = ""
+_wpscan_api_key: str = ""
+
+
+async def _load_wpscan_settings():
+    global _wpscan_api_key
+    from db.database import SessionLocal
+    async with SessionLocal() as db:
+        r = await db.execute(select(Setting).where(Setting.key == "wpscan_api_key"))
+        row = r.scalar_one_or_none()
+        if row and row.value:
+            _wpscan_api_key = row.value
 
 
 async def _load_hibp_settings():
@@ -438,6 +449,7 @@ async def lifespan(app: FastAPI):
     await _load_email_settings()
     await _load_readonly_settings()
     await _load_hibp_settings()
+    await _load_wpscan_settings()
     scheduler.add_job(run_due_scans, "interval", hours=1, id="domain_scanner")
     scheduler.start()
     _apply_lan_schedule()
@@ -794,6 +806,38 @@ async def rescan_host_route(
     })
 
 
+@app.post("/hosts/{host_id}/wpscan", response_class=HTMLResponse)
+async def wpscan_host(
+    host_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    from scanner.checks import wpscan as _wpscan
+    host = await db.get(Host, host_id)
+    if not host:
+        return HTMLResponse("Not found", status_code=404)
+
+    api_key = _wpscan_api_key if _license.has_feature("pdf") else None
+    result  = await _wpscan.run(host.ip, host.open_ports or [], api_key)
+
+    host.is_wordpress    = result["detected"]
+    host.wp_version      = result.get("version")
+    host.wp_url          = result.get("url")
+    host.wp_scan_at      = datetime.now(timezone.utc)
+    host.wp_scan_results = result
+    await db.commit()
+    await db.refresh(host)
+
+    ports = enrich_ports(host.open_ports or [])
+    flagged_ports = [p for p in ports if p["risk"] in ("critical", "high")]
+    return _tpl("host_detail.html", {
+        "request":      request,
+        "host":         host,
+        "ports":        ports,
+        "flagged_ports": flagged_ports,
+    })
+
+
 @app.post("/hosts/{host_id}/acknowledge", response_class=HTMLResponse)
 async def acknowledge_host(
     host_id: str,
@@ -893,8 +937,9 @@ async def settings_page(request: Request):
         "share_url":        _build_share_url(),
         "base_url":         _base_url,
         "detected_url":     _detect_server_url(),
-        "hibp_api_key_set": bool(_hibp_api_key),
-        "dns_servers":      _dns_servers,
+        "hibp_api_key_set":    bool(_hibp_api_key),
+        "wpscan_api_key_set":  bool(_wpscan_api_key),
+        "dns_servers":         _dns_servers,
     })
 
 
@@ -1216,6 +1261,14 @@ async def save_hibp_settings(hibp_api_key: str = Form(default="")):
     _hibp_api_key = hibp_api_key.strip()
     asyncio.create_task(_save_setting("hibp_api_key", _hibp_api_key))
     return HTMLResponse('<div class="toast">HIBP settings saved.</div>')
+
+
+@app.post("/settings/wpscan", response_class=HTMLResponse)
+async def save_wpscan_settings(wpscan_api_key: str = Form(default="")):
+    global _wpscan_api_key
+    _wpscan_api_key = wpscan_api_key.strip()
+    asyncio.create_task(_save_setting("wpscan_api_key", _wpscan_api_key))
+    return HTMLResponse('<div class="toast">WPScan settings saved.</div>')
 
 
 # ── PDF Report ────────────────────────────────────────────────────────────────

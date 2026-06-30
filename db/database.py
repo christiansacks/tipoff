@@ -41,6 +41,11 @@ class Host(Base):
     ack_note         = Column(String, nullable=True)
     ack_at           = Column(DateTime, nullable=True)
     last_alert_at    = Column(DateTime, nullable=True)
+    is_wordpress     = Column(Boolean, default=False)
+    wp_version       = Column(String, nullable=True)
+    wp_url           = Column(String, nullable=True)
+    wp_scan_at       = Column(DateTime, nullable=True)
+    wp_scan_results  = Column(JSON, nullable=True)
 
 
 class ScanResult(Base):
@@ -103,6 +108,11 @@ async def init_db():
             "ALTER TABLE hosts ADD COLUMN last_alert_at DATETIME",
             "ALTER TABLE hosts ADD COLUMN first_seen DATETIME",
             "ALTER TABLE domains ADD COLUMN alerted_fail_ids TEXT",
+            "ALTER TABLE hosts ADD COLUMN is_wordpress BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE hosts ADD COLUMN wp_version TEXT",
+            "ALTER TABLE hosts ADD COLUMN wp_url TEXT",
+            "ALTER TABLE hosts ADD COLUMN wp_scan_at DATETIME",
+            "ALTER TABLE hosts ADD COLUMN wp_scan_results TEXT",
         ]:
             try:
                 await conn.execute(text(sql))

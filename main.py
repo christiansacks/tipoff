@@ -371,20 +371,31 @@ async def _fire_webhooks(event: str, context: dict):
             continue
         name = context.get("name", "")
         status = context.get("status", event.replace("_", " "))
-        msg = f"TipOff • {name} — {status}"
-        payload = {
-            "content":   msg,   # Discord
-            "text":      msg,   # Slack / Mattermost
-            "message":   msg,   # generic
-            "event":     event,
-            "name":      name,
-            "status":    status,
-            "timestamp": now,
-            "details":   context,
-        }
+        body     = f"{name} — {status}"
+        msg      = f"TipOff • {body}"
+        priority = 4 if "down" in event else 3
+
         try:
             async with httpx.AsyncClient(timeout=10) as client:
-                await client.post(wh.url, json=payload)
+                if wh.webhook_type == "ntfy":
+                    await client.post(
+                        wh.url,
+                        content=body.encode(),
+                        headers={
+                            "Title":    "TipOff",
+                            "Priority": str(priority),
+                            "Tags":     "bell" if "down" not in event else "rotating_light",
+                        },
+                    )
+                else:
+                    await client.post(wh.url, json={
+                        "content":   msg,
+                        "text":      msg,
+                        "event":     event,
+                        "name":      name,
+                        "status":    status,
+                        "timestamp": now,
+                    })
         except Exception as e:
             print(f"Webhook '{wh.name}' failed: {e}")
 
@@ -2063,13 +2074,15 @@ async def webhooks_page(request: Request, db: AsyncSession = Depends(get_db)):
 
 @app.post("/webhooks", response_class=HTMLResponse)
 async def add_webhook(
-    request: Request,
-    name:   str  = Form(),
-    url:    str  = Form(),
-    events: list = Form(default=[]),
+    request:      Request,
+    name:         str  = Form(),
+    url:          str  = Form(),
+    webhook_type: str  = Form(default="json"),
+    events:       list = Form(default=[]),
     db: AsyncSession = Depends(get_db),
 ):
-    wh = Webhook(name=name.strip(), url=url.strip(), events=json.dumps(events))
+    wh = Webhook(name=name.strip(), url=url.strip(),
+                 webhook_type=webhook_type, events=json.dumps(events))
     db.add(wh)
     await db.commit()
     return HTMLResponse("", headers={"HX-Redirect": "/webhooks"})
@@ -2100,21 +2113,26 @@ async def test_webhook(webhook_id: str, db: AsyncSession = Depends(get_db)):
     if not wh:
         return HTMLResponse("Not found", status_code=404)
     import httpx
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    msg = "TipOff • test — this is a test webhook from TipOff"
-    payload = {
-        "content":   msg,
-        "text":      msg,
-        "message":   msg,
-        "event":     "test",
-        "name":      "test",
-        "status":    "test",
-        "timestamp": now,
-        "details":   {},
-    }
+    now  = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    body = f"{wh.name} — this is a test notification"
+    msg  = f"TipOff • {body}"
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.post(wh.url, json=payload)
+            if wh.webhook_type == "ntfy":
+                r = await client.post(
+                    wh.url,
+                    content=body.encode(),
+                    headers={"Title": "TipOff", "Priority": "3", "Tags": "bell"},
+                )
+            else:
+                r = await client.post(wh.url, json={
+                    "content":   msg,
+                    "text":      msg,
+                    "event":     "test",
+                    "name":      wh.name,
+                    "status":    "test",
+                    "timestamp": now,
+                })
         return HTMLResponse(
             f'<span class="badge pass" id="test-result-{webhook_id}">Sent — {r.status_code}</span>'
         )

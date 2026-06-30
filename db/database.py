@@ -102,12 +102,13 @@ class UptimeCheck(Base):
 
 class Webhook(Base):
     __tablename__ = "webhooks"
-    id       = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    name     = Column(String, nullable=False)
-    url      = Column(String, nullable=False)
-    events   = Column(String, nullable=False, default="[]")  # JSON list of event names
-    enabled  = Column(Boolean, default=True)
-    added_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    id           = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name         = Column(String, nullable=False)
+    url          = Column(String, nullable=False)
+    events       = Column(String, nullable=False, default="[]")  # JSON list of event names
+    webhook_type = Column(String, nullable=False, default="json")  # json / ntfy
+    enabled      = Column(Boolean, default=True)
+    added_at     = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class MonitoredEmail(Base):
@@ -163,6 +164,7 @@ async def init_db():
             "ALTER TABLE domains ADD COLUMN public_status BOOLEAN DEFAULT FALSE",
             "ALTER TABLE domains ADD COLUMN uptime_alerted BOOLEAN DEFAULT FALSE",
             "ALTER TABLE uptime_checks ADD COLUMN monitor_id TEXT",
+            "ALTER TABLE webhooks ADD COLUMN webhook_type TEXT DEFAULT 'json'",
         ]:
             try:
                 await conn.execute(text(sql))

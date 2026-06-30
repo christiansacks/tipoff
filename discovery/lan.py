@@ -132,37 +132,65 @@ async def _netbios_lookup(ip: str, loop: asyncio.AbstractEventLoop) -> str | Non
 def _parse_netbios(data: bytes) -> str | None:
     """Extract the workstation name from a NetBIOS Node Status response."""
     try:
-        # Skip header (12) + question section (38 bytes: 1+32+1+2+2)
-        offset = 50
-        if len(data) <= offset:
+        if len(data) < 12:
             return None
 
-        # Skip answer RR name — usually a 2-byte compressed pointer
-        if data[offset] == 0xC0:
-            offset += 2
-        else:
-            while offset < len(data) and data[offset]:
-                offset += data[offset] + 1
-            offset += 1
-
-        # Skip type(2) + class(2) + TTL(4) + rdlength(2)
-        offset += 10
-        if offset >= len(data):
+        qdcount = struct.unpack("!H", data[4:6])[0]
+        ancount = struct.unpack("!H", data[6:8])[0]
+        if ancount == 0:
             return None
 
-        num_names = data[offset]
-        offset += 1
+        offset = 12
 
-        for _ in range(min(num_names, 20)):
-            if offset + 18 > len(data):
-                break
-            name  = data[offset:offset + 15].decode("ascii", errors="ignore").rstrip()
-            ntype = data[offset + 15]
-            flags = struct.unpack("!H", data[offset + 16:offset + 18])[0]
-            offset += 18
-            # type 0x00 = workstation/server name; skip group names (0x8000 flag)
-            if ntype == 0x00 and not (flags & 0x8000):
-                return name.strip() or None
+        # Skip question section — parse it rather than assume fixed length,
+        # because some devices compress the name in the response
+        for _ in range(qdcount):
+            while offset < len(data):
+                length = data[offset]
+                if length == 0:
+                    offset += 1
+                    break
+                if length & 0xC0 == 0xC0:
+                    offset += 2
+                    break
+                offset += 1 + length
+            offset += 4  # QTYPE + QCLASS
+
+        # Walk answer records
+        for _ in range(ancount):
+            if offset >= len(data):
+                return None
+            # Skip answer name
+            if data[offset] & 0xC0 == 0xC0:
+                offset += 2
+            else:
+                while offset < len(data) and data[offset]:
+                    offset += data[offset] + 1
+                offset += 1
+
+            if offset + 10 > len(data):
+                return None
+            rtype = struct.unpack("!H", data[offset:offset + 2])[0]
+            rdlen = struct.unpack("!H", data[offset + 8:offset + 10])[0]
+            offset += 10
+
+            if rtype == 0x0021:  # NBSTAT
+                if offset >= len(data):
+                    return None
+                num_names = data[offset]
+                offset += 1
+                for _ in range(min(num_names, 20)):
+                    if offset + 18 > len(data):
+                        break
+                    name  = data[offset:offset + 15].decode("ascii", errors="ignore").rstrip()
+                    ntype = data[offset + 15]
+                    flags = struct.unpack("!H", data[offset + 16:offset + 18])[0]
+                    offset += 18
+                    # type 0x00 = workstation/server; skip group names (0x8000 flag)
+                    if ntype == 0x00 and not (flags & 0x8000):
+                        return name.strip() or None
+            else:
+                offset += rdlen
 
         return None
     except Exception:

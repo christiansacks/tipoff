@@ -152,6 +152,8 @@ button:hover { opacity: 0.85; }
 .badge.wp-badge { background: rgba(33,117,186,.15); color: #4a9fd4; }
 
 .wp-meta { margin-bottom: .75rem; }
+.wp-meta a { color: #60b8f5; text-decoration: underline; text-underline-offset: 2px; }
+.wp-meta a:hover { color: #93cffa; }
 .wp-vuln-heading { font-size: 13px; font-weight: 600; margin: 1rem 0 .5rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
 .wp-vuln { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: .75rem; margin-bottom: .5rem; }
 .wp-vuln-critical { border-color: rgba(239,68,68,.4); }

@@ -19,7 +19,12 @@
         </span>
       {% endif %}
       {% if item.domain.is_wordpress %}
-        <span class="badge wp-badge" title="WordPress detected{% if item.domain.wp_version %} (v{{ item.domain.wp_version }}){% endif %}">WP</span>
+        {% set wp_vulns = item.domain.wp_scan_results.vulnerabilities | length if item.domain.wp_scan_results and item.domain.wp_scan_results.vulnerabilities else 0 %}
+        {% if wp_vulns > 0 %}
+          <span class="badge warn" title="WordPress: {{ wp_vulns }} vulnerabilit{{ 'y' if wp_vulns == 1 else 'ies' }} detected">WP · {{ wp_vulns }}</span>
+        {% else %}
+          <span class="badge wp-badge" title="WordPress detected{% if item.domain.wp_version %} (v{{ item.domain.wp_version }}){% endif %}">WP</span>
+        {% endif %}
       {% endif %}
       {% if item.fails > 0 %}
         <span class="badge fail">{{ item.fails }} critical</span>

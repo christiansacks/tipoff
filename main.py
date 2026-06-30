@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.database import (
     init_db, seed_defaults, get_db, get_setting,
-    Domain, Host, ScanResult, Setting, MonitoredEmail, UptimeCheck,
+    Domain, Host, ScanResult, Setting, MonitoredEmail, UptimeCheck, Monitor,
     hash_password, verify_password,
 )
 from scanner.runner import scan_domain
@@ -356,61 +356,112 @@ async def _check_and_send_alerts():
         await db.commit()
 
 
-async def _run_uptime_checks():
-    """Check every domain is reachable over HTTPS/HTTP. Runs every 5 minutes."""
+def _check_expected_status(actual: int, expected: str | None) -> bool:
+    """Return True if actual HTTP status matches the expected pattern."""
+    if not expected or not expected.strip():
+        return actual < 500
+    for part in expected.split(","):
+        part = part.strip().lower()
+        if part == "2xx" and 200 <= actual < 300:
+            return True
+        if part == "3xx" and 300 <= actual < 400:
+            return True
+        if part == "4xx" and 400 <= actual < 500:
+            return True
+        if part == "5xx" and 500 <= actual < 600:
+            return True
+        try:
+            if int(part) == actual:
+                return True
+        except ValueError:
+            pass
+    return False
+
+
+async def _http_check(url: str, timeout: int = 10) -> tuple[bool, int | None, int | None]:
+    """Perform HTTP GET, return (is_reachable, status_code, response_ms)."""
     import httpx
+    try:
+        t0 = datetime.now(timezone.utc)
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            r = await client.get(url)
+        ms = int((datetime.now(timezone.utc) - t0).total_seconds() * 1000)
+        return True, r.status_code, ms
+    except Exception:
+        return False, None, None
+
+
+async def _tcp_check(host: str, port: int, timeout: int = 5) -> tuple[bool, int | None]:
+    """TCP connect check, return (is_up, response_ms)."""
+    import asyncio as _asyncio
+    try:
+        t0 = datetime.now(timezone.utc)
+        _, writer = await _asyncio.wait_for(
+            _asyncio.open_connection(host, port), timeout=timeout
+        )
+        ms = int((datetime.now(timezone.utc) - t0).total_seconds() * 1000)
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except Exception:
+            pass
+        return True, ms
+    except Exception:
+        return False, None
+
+
+async def _run_uptime_checks():
+    """Check every domain + custom monitor. Runs every 5 minutes."""
     from datetime import timedelta
     from db.database import SessionLocal
     async with SessionLocal() as db:
-        domains_result = await db.execute(select(Domain))
-        domains = domains_result.scalars().all()
         now = datetime.now(timezone.utc)
         newly_down, newly_up = [], []
 
-        for domain in domains:
-            url = f"https://{domain.hostname}"
-            is_up, response_ms, status_code = False, None, None
-            try:
-                t0 = datetime.now(timezone.utc)
-                async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
-                    r = await client.get(url)
-                response_ms  = int((datetime.now(timezone.utc) - t0).total_seconds() * 1000)
-                status_code  = r.status_code
-                is_up        = r.status_code < 500
-            except Exception:
-                # Try plain HTTP as fallback
-                try:
-                    url = f"http://{domain.hostname}"
-                    t0  = datetime.now(timezone.utc)
-                    async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
-                        r = await client.get(url)
-                    response_ms = int((datetime.now(timezone.utc) - t0).total_seconds() * 1000)
-                    status_code = r.status_code
-                    is_up       = r.status_code < 500
-                except Exception:
-                    is_up = False
+        # ── Domain checks (HTTP/HTTPS) ──────────────────────────────────────
+        domains_result = await db.execute(select(Domain))
+        for domain in domains_result.scalars().all():
+            reachable, status_code, response_ms = await _http_check(f"https://{domain.hostname}")
+            if not reachable:
+                reachable, status_code, response_ms = await _http_check(f"http://{domain.hostname}")
+            is_up = reachable and (status_code is not None) and status_code < 500
 
-            db.add(UptimeCheck(
-                domain_id   = domain.id,
-                checked_at  = now,
-                is_up       = is_up,
-                response_ms = response_ms,
-                status_code = status_code,
-            ))
-
-            # Track up→down and down→up transitions for alerting
+            db.add(UptimeCheck(domain_id=domain.id, checked_at=now,
+                               is_up=is_up, response_ms=response_ms, status_code=status_code))
             if not is_up and not domain.uptime_alerted:
                 domain.uptime_alerted = True
-                newly_down.append(domain)
+                newly_down.append(("domain", domain.hostname))
             elif is_up and domain.uptime_alerted:
                 domain.uptime_alerted = False
-                newly_up.append(domain)
+                newly_up.append(("domain", domain.hostname))
+
+        # ── Custom monitor checks ───────────────────────────────────────────
+        monitors_result = await db.execute(select(Monitor).where(Monitor.enabled == True))
+        for mon in monitors_result.scalars().all():
+            is_up, response_ms, status_code = False, None, None
+
+            if mon.protocol == "tcp":
+                is_up, response_ms = await _tcp_check(mon.host, mon.port)
+            else:
+                scheme = "https" if mon.protocol == "https" else "http"
+                reachable, status_code, response_ms = await _http_check(
+                    f"{scheme}://{mon.host}:{mon.port}"
+                )
+                is_up = reachable and status_code is not None and _check_expected_status(status_code, mon.expected_status)
+
+            db.add(UptimeCheck(monitor_id=mon.id, checked_at=now,
+                               is_up=is_up, response_ms=response_ms, status_code=status_code))
+            label = f"{mon.name} ({mon.host}:{mon.port})"
+            if not is_up and not mon.uptime_alerted:
+                mon.uptime_alerted = True
+                newly_down.append(("monitor", label))
+            elif is_up and mon.uptime_alerted:
+                mon.uptime_alerted = False
+                newly_up.append(("monitor", label))
 
         # Prune checks older than 90 days
         cutoff = now - timedelta(days=90)
-        await db.execute(
-            delete(UptimeCheck).where(UptimeCheck.checked_at < cutoff)
-        )
+        await db.execute(delete(UptimeCheck).where(UptimeCheck.checked_at < cutoff))
         await db.commit()
 
     # Send alert if anything went down (Pro + email configured)
@@ -418,15 +469,15 @@ async def _run_uptime_checks():
         from mailer.sender import send_email
         try:
             ctx = {
-                "newly_down":   [d.hostname for d in newly_down],
-                "newly_up":     [d.hostname for d in newly_up],
+                "newly_down":   [label for _, label in newly_down],
+                "newly_up":     [label for _, label in newly_up],
                 "generated_at": datetime.now(timezone.utc).strftime("%d %b %Y at %H:%M UTC"),
             }
             html = templates.env.get_template("email/uptime_alert.html").render(ctx)
             text = templates.env.get_template("email/uptime_alert.txt").render(ctx)
             n = len(newly_down)
             await send_email(_email_cfg, _email_recipient,
-                             f"TipOff — {n} domain{'s' if n != 1 else ''} went down",
+                             f"TipOff — {n} service{'s' if n != 1 else ''} went down",
                              html, text)
         except Exception as e:
             print(f"Uptime alert email failed: {e}")
@@ -1816,11 +1867,59 @@ async def status_page(request: Request, db: AsyncSession = Depends(get_db)):
         current_up = latest.is_up if latest else None
 
         items.append({
-            "domain":      domain,
-            "grid":        grid,
-            "uptime_pct":  uptime_pct,
-            "current_up":  current_up,
-            "last_checked": latest.checked_at if latest else None,
+            "label":      domain.hostname,
+            "sublabel":   None,
+            "domain":     domain,
+            "grid":       grid,
+            "uptime_pct": uptime_pct,
+            "current_up": current_up,
+        })
+
+    # ── Custom monitors ─────────────────────────────────────────────────────
+    monitors_result = await db.execute(select(Monitor).where(
+        Monitor.public_status == True, Monitor.enabled == True
+    ))
+    for mon in monitors_result.scalars().all():
+        cutoff = now - timedelta(days=days)
+        checks_result = await db.execute(
+            select(UptimeCheck).where(
+                UptimeCheck.monitor_id == mon.id,
+                UptimeCheck.checked_at >= cutoff,
+            ).order_by(UptimeCheck.checked_at.asc())
+        )
+        checks = checks_result.scalars().all()
+        daily = {}
+        for c in checks:
+            day_key = c.checked_at.date()
+            if day_key not in daily:
+                daily[day_key] = {"up": 0, "total": 0}
+            daily[day_key]["total"] += 1
+            if c.is_up:
+                daily[day_key]["up"] += 1
+        grid = []
+        for i in range(days):
+            day = (now - timedelta(days=days - 1 - i)).date()
+            if day in daily:
+                b = daily[day]
+                pct = b["up"] / b["total"] if b["total"] else 0
+                state = "up" if pct >= 0.8 else ("degraded" if pct >= 0.4 else "down")
+            else:
+                state = "nodata"
+            grid.append({"date": day.strftime("%d %b %Y"), "state": state})
+        total_checks = sum(d["total"] for d in daily.values())
+        up_checks    = sum(d["up"] for d in daily.values())
+        uptime_pct   = round(up_checks / total_checks * 100, 2) if total_checks else None
+        latest_result = await db.execute(
+            select(UptimeCheck).where(UptimeCheck.monitor_id == mon.id)
+            .order_by(UptimeCheck.checked_at.desc())
+        )
+        latest = latest_result.scalars().first()
+        items.append({
+            "label":      f"{mon.name}",
+            "sublabel":   f"{mon.host}:{mon.port} ({mon.protocol.upper()})",
+            "grid":       grid,
+            "uptime_pct": uptime_pct,
+            "current_up": latest.is_up if latest else None,
         })
 
     all_up = all(i["current_up"] for i in items if i["current_up"] is not None)
@@ -1830,3 +1929,75 @@ async def status_page(request: Request, db: AsyncSession = Depends(get_db)):
         "all_up":   all_up,
         "readonly": True,
     })
+
+
+# ── Custom Monitors ────────────────────────────────────────────────────────────
+
+@app.get("/monitors", response_class=HTMLResponse)
+async def monitors_page(request: Request, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Monitor).order_by(Monitor.added_at))
+    monitors = result.scalars().all()
+
+    # Attach latest check to each monitor
+    items = []
+    for mon in monitors:
+        latest_result = await db.execute(
+            select(UptimeCheck).where(UptimeCheck.monitor_id == mon.id)
+            .order_by(UptimeCheck.checked_at.desc())
+        )
+        latest = latest_result.scalars().first()
+        items.append({"monitor": mon, "latest": latest})
+
+    return _tpl("monitors.html", {"request": request, "items": items})
+
+
+@app.post("/monitors", response_class=HTMLResponse)
+async def add_monitor(
+    request: Request,
+    name:            str = Form(),
+    host:            str = Form(),
+    port:            int = Form(),
+    protocol:        str = Form(default="tcp"),
+    expected_status: str = Form(default=""),
+    db: AsyncSession = Depends(get_db),
+):
+    mon = Monitor(
+        name=name.strip(),
+        host=host.strip(),
+        port=port,
+        protocol=protocol,
+        expected_status=expected_status.strip() or None,
+    )
+    db.add(mon)
+    await db.commit()
+    return HTMLResponse("", headers={"HX-Redirect": "/monitors"})
+
+
+@app.delete("/monitors/{monitor_id}", response_class=HTMLResponse)
+async def delete_monitor(monitor_id: str, db: AsyncSession = Depends(get_db)):
+    mon = await db.get(Monitor, monitor_id)
+    if mon:
+        await db.execute(delete(UptimeCheck).where(UptimeCheck.monitor_id == monitor_id))
+        await db.delete(mon)
+        await db.commit()
+    return HTMLResponse("")
+
+
+@app.post("/monitors/{monitor_id}/toggle-enabled", response_class=HTMLResponse)
+async def toggle_monitor_enabled(monitor_id: str, db: AsyncSession = Depends(get_db)):
+    mon = await db.get(Monitor, monitor_id)
+    if not mon:
+        return HTMLResponse("")
+    mon.enabled = not mon.enabled
+    await db.commit()
+    return HTMLResponse("", headers={"HX-Redirect": "/monitors"})
+
+
+@app.post("/monitors/{monitor_id}/toggle-public", response_class=HTMLResponse)
+async def toggle_monitor_public(monitor_id: str, db: AsyncSession = Depends(get_db)):
+    mon = await db.get(Monitor, monitor_id)
+    if not mon:
+        return HTMLResponse("")
+    mon.public_status = not mon.public_status
+    await db.commit()
+    return HTMLResponse("", headers={"HX-Redirect": "/monitors"})

@@ -75,10 +75,25 @@ class Setting(Base):
     value = Column(String, nullable=False)
 
 
+class Monitor(Base):
+    __tablename__ = "monitors"
+    id              = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name            = Column(String, nullable=False)
+    host            = Column(String, nullable=False)
+    port            = Column(Integer, nullable=False)
+    protocol        = Column(String, nullable=False, default="tcp")  # tcp / http / https
+    expected_status = Column(String, nullable=True)   # e.g. "200" "200,301" "2xx" — HTTP only
+    enabled         = Column(Boolean, default=True)
+    public_status   = Column(Boolean, default=False)
+    uptime_alerted  = Column(Boolean, default=False)
+    added_at        = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class UptimeCheck(Base):
     __tablename__ = "uptime_checks"
     id          = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    domain_id   = Column(String, ForeignKey("domains.id"), nullable=False)
+    domain_id   = Column(String, ForeignKey("domains.id"), nullable=True)
+    monitor_id  = Column(String, ForeignKey("monitors.id"), nullable=True)
     checked_at  = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     is_up       = Column(Boolean, nullable=False)
     response_ms = Column(Integer, nullable=True)
@@ -137,6 +152,7 @@ async def init_db():
             "ALTER TABLE domains ADD COLUMN whois_alert_sent TEXT",
             "ALTER TABLE domains ADD COLUMN public_status BOOLEAN DEFAULT FALSE",
             "ALTER TABLE domains ADD COLUMN uptime_alerted BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE uptime_checks ADD COLUMN monitor_id TEXT",
         ]:
             try:
                 await conn.execute(text(sql))

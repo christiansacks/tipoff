@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header">
+  <a href="/" class="back">← Dashboard</a>
+  <h1>Custom Monitors</h1>
+</div>
+
+<!-- Add monitor form -->
+<section class="card" style="margin-bottom:1.5rem">
+  <div class="card-header">
+    <h2>Add Monitor</h2>
+  </div>
+  <form hx-post="/monitors" hx-target="body" class="settings-form">
+    <div style="display:grid;grid-template-columns:2fr 2fr 1fr 1fr;gap:.75rem;align-items:end;flex-wrap:wrap">
+      <div class="field" style="margin:0">
+        <label>Name</label>
+        <input type="text" name="name" placeholder="BBS SSH" required>
+      </div>
+      <div class="field" style="margin:0">
+        <label>Host</label>
+        <input type="text" name="host" placeholder="bbs.erb.pw" required>
+      </div>
+      <div class="field" style="margin:0">
+        <label>Port</label>
+        <input type="number" name="port" placeholder="22" min="1" max="65535" required style="width:100%">
+      </div>
+      <div class="field" style="margin:0">
+        <label>Protocol</label>
+        <select name="protocol" id="protocol-select" onchange="toggleExpected(this.value)"
+                style="background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:.5rem .75rem;font-size:14px;width:100%">
+          <option value="tcp">TCP</option>
+          <option value="http">HTTP</option>
+          <option value="https">HTTPS</option>
+        </select>
+      </div>
+    </div>
+    <div class="field" id="expected-status-field" style="display:none;margin-top:.75rem;max-width:260px">
+      <label>Expected status <span class="muted">(optional)</span></label>
+      <input type="text" name="expected_status" placeholder="200  or  200,301  or  2xx">
+      <div class="field-hint">Leave blank to accept any non-5xx response.</div>
+    </div>
+    <button type="submit" style="margin-top:.75rem">Add monitor</button>
+  </form>
+</section>
+
+<!-- Monitor list -->
+{% if items %}
+<section class="card">
+  <div class="card-header">
+    <h2>Monitors</h2>
+    <span class="badge">{{ items|length }}</span>
+  </div>
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <thead>
+      <tr style="border-bottom:1px solid var(--border);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em">
+        <th style="padding:.6rem .75rem;text-align:left;font-weight:600">Name</th>
+        <th style="padding:.6rem .75rem;text-align:left;font-weight:600">Host : Port</th>
+        <th style="padding:.6rem .75rem;text-align:left;font-weight:600">Protocol</th>
+        <th style="padding:.6rem .75rem;text-align:left;font-weight:600">Expected</th>
+        <th style="padding:.6rem .75rem;text-align:left;font-weight:600">Status</th>
+        <th style="padding:.6rem .75rem;text-align:left;font-weight:600">Response</th>
+        <th style="padding:.6rem .75rem;text-align:right;font-weight:600">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr style="border-bottom:1px solid var(--border)" id="monitor-row-{{ item.monitor.id }}">
+        <td style="padding:.75rem">
+          <span style="font-weight:600">{{ item.monitor.name }}</span>
+          {% if not item.monitor.enabled %}<span class="badge" style="margin-left:.4rem">Disabled</span>{% endif %}
+        </td>
+        <td style="padding:.75rem;font-family:monospace;font-size:12px">{{ item.monitor.host }}:{{ item.monitor.port }}</td>
+        <td style="padding:.75rem">
+          <span class="badge">{{ item.monitor.protocol.upper() }}</span>
+        </td>
+        <td style="padding:.75rem;color:var(--muted)">
+          {{ item.monitor.expected_status or '—' }}
+        </td>
+        <td style="padding:.75rem">
+          {% if item.latest is none %}
+            <span class="badge">No data</span>
+          {% elif item.latest.is_up %}
+            <span class="badge pass">Up</span>
+          {% else %}
+            <span class="badge fail">Down</span>
+          {% endif %}
+        </td>
+        <td style="padding:.75rem;color:var(--muted);font-size:12px">
+          {% if item.latest and item.latest.response_ms is not none %}
+            {{ item.latest.response_ms }}ms
+            {% if item.latest.status_code %} · {{ item.latest.status_code }}{% endif %}
+          {% else %}—{% endif %}
+        </td>
+        <td style="padding:.75rem;text-align:right">
+          <div style="display:flex;gap:.4rem;justify-content:flex-end">
+            <button hx-post="/monitors/{{ item.monitor.id }}/toggle-public"
+                    hx-target="body"
+                    class="btn-sm {{ 'btn-active' if item.monitor.public_status else '' }}"
+                    title="{{ 'Remove from' if item.monitor.public_status else 'Add to' }} public status page">
+              {{ 'Public ✓' if item.monitor.public_status else 'Public' }}
+            </button>
+            <button hx-post="/monitors/{{ item.monitor.id }}/toggle-enabled"
+                    hx-target="body"
+                    class="btn-sm {{ '' if item.monitor.enabled else 'btn-active' }}">
+              {{ 'Disable' if item.monitor.enabled else 'Enable' }}
+            </button>
+            <button hx-delete="/monitors/{{ item.monitor.id }}"
+                    hx-target="#monitor-row-{{ item.monitor.id }}"
+                    hx-swap="outerHTML"
+                    hx-confirm="Remove {{ item.monitor.name }}?"
+                    class="btn-sm">Remove</button>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% else %}
+<div class="notice" style="text-align:center;padding:2rem">
+  No monitors yet. Add one above to start tracking custom hosts and ports.
+</div>
+{% endif %}
+
+<script>
+function toggleExpected(protocol) {
+  document.getElementById('expected-status-field').style.display =
+    (protocol === 'http' || protocol === 'https') ? 'block' : 'none';
+}
+</script>
+
+{% endblock %}

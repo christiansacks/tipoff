@@ -2,7 +2,17 @@
 {% set status_class = "scanning" if scanning else ("ok" if item.fails == 0 and item.warns == 0 else ("warn" if item.fails == 0 else "fail")) %}
 <div class="domain-row {{ status_class }}">
   <div class="domain-info">
-    <a href="/domain/{{ item.domain.id }}" class="domain-name">{{ item.domain.hostname }}</a>
+    <div style="display:flex;align-items:center;gap:.5rem">
+      <a href="/domain/{{ item.domain.id }}" class="domain-name">{{ item.domain.hostname }}</a>
+      {% if item.domain.is_wordpress %}
+        {% set wp_vulns = item.domain.wp_scan_results.vulnerabilities | length if item.domain.wp_scan_results and item.domain.wp_scan_results.vulnerabilities else 0 %}
+        {% if wp_vulns > 0 %}
+          <span class="badge warn" title="WordPress: {{ wp_vulns }} vulnerabilit{{ 'y' if wp_vulns == 1 else 'ies' }} detected">WP · {{ wp_vulns }}</span>
+        {% else %}
+          <span class="badge wp-badge" title="WordPress detected{% if item.domain.wp_version %} (v{{ item.domain.wp_version }}){% endif %}">WP</span>
+        {% endif %}
+      {% endif %}
+    </div>
     <span class="domain-meta">
       {% if scanning %}
         <span class="scanning-indicator">Scanning…</span>
@@ -17,14 +27,6 @@
         <span class="score score-{{ 'good' if item.score >= 48 else ('ok' if item.score >= 30 else 'bad') }}">
           {{ item.score }}/60
         </span>
-      {% endif %}
-      {% if item.domain.is_wordpress %}
-        {% set wp_vulns = item.domain.wp_scan_results.vulnerabilities | length if item.domain.wp_scan_results and item.domain.wp_scan_results.vulnerabilities else 0 %}
-        {% if wp_vulns > 0 %}
-          <span class="badge warn" title="WordPress: {{ wp_vulns }} vulnerabilit{{ 'y' if wp_vulns == 1 else 'ies' }} detected">WP · {{ wp_vulns }}</span>
-        {% else %}
-          <span class="badge wp-badge" title="WordPress detected{% if item.domain.wp_version %} (v{{ item.domain.wp_version }}){% endif %}">WP</span>
-        {% endif %}
       {% endif %}
       {% if item.fails > 0 %}
         <span class="badge fail">{{ item.fails }} critical</span>

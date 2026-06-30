@@ -6,432 +6,547 @@
   <h1>Settings</h1>
 </div>
 
-<!-- ── DNS Servers ───────────────────────────────────────────────── -->
-<section class="card" id="dns-settings">
-  <div class="card-header">
-    <h2>DNS Servers</h2>
-  </div>
-  <p class="muted" style="margin:0 0 1.25rem">
-    DNS servers used for domain checks (SPF, DMARC, DKIM, etc.). Public DNS ensures checks
-    work correctly regardless of your local network or VPN configuration.
-  </p>
-  <form hx-post="/settings/dns"
-        hx-target="#toast-container"
-        class="settings-form">
-    <div class="field">
-      <label>Nameservers <span class="muted">(comma-separated IPs)</span></label>
-      <input type="text" name="dns_servers" value="{{ dns_servers }}"
-             placeholder="1.1.1.1, 8.8.8.8" style="max-width:320px">
-      <div class="field-hint">
-        Default: Cloudflare (1.1.1.1) and Google (8.8.8.8).
-        Add your internal resolver IP here if you need to check private/internal domains.
-      </div>
-    </div>
-    <button type="submit">Save</button>
-  </form>
-</section>
-
-<!-- ── Breach Monitoring ────────────────────────────────────────── -->
-<section class="card" id="breach-settings">
-  <div class="card-header">
-    <h2>Breach Monitoring</h2>
-    {% if hibp_api_key_set %}<span class="badge pass">HIBP configured</span>
-    {% else %}<span class="badge">HIBP not configured</span>{% endif %}
-  </div>
-  <p class="muted" style="margin:0 0 1.25rem">
-    An API key from <strong>haveibeenpwned.com</strong> is required to check email addresses against
-    known breach databases. The password checker works without a key and is always free.
-  </p>
-  <form hx-post="/settings/hibp"
-        hx-target="#toast-container"
-        class="settings-form">
-    <div class="field">
-      <label>HIBP API key</label>
-      <input type="password" name="hibp_api_key"
-             placeholder="{% if hibp_api_key_set %}Key saved — enter a new one to replace{% else %}Paste your HIBP API key here{% endif %}"
-             autocomplete="off">
-      <div class="field-hint">
-        Get a key at <strong>haveibeenpwned.com/API/Key</strong> — needed for email breach checks only.
-        Billing is monthly. The Pwned Passwords check (dashboard) works without a key.
-      </div>
-    </div>
-    <button type="submit">Save</button>
-  </form>
-</section>
-
-<!-- ── WordPress / WPScan ───────────────────────────────────────── -->
-<section class="card" id="wpscan-settings">
-  <div class="card-header">
-    <h2>WordPress Scanning</h2>
-    {% if wpscan_api_key_set %}<span class="badge pass">WPScan API key configured</span>
-    {% else %}<span class="badge">No API key — basic detection only</span>{% endif %}
-  </div>
-  <p class="muted" style="margin:0 0 1.25rem">
-    TipOff detects WordPress on LAN hosts automatically (free). Adding a WPScan API key
-    enables CVE lookups for WordPress core, plugins and themes (Pro).
-    Get a free key at <strong>wpscan.com</strong> — free tier includes 25 API requests per day.
-  </p>
-  <form hx-post="/settings/wpscan"
-        hx-target="#toast-container"
-        class="settings-form">
-    <div class="field">
-      <label>WPScan API key</label>
-      <input type="password" name="wpscan_api_key"
-             placeholder="{% if wpscan_api_key_set %}Key saved — enter a new one to replace{% else %}Paste your WPScan API key here{% endif %}"
-             autocomplete="off">
-    </div>
-    <button type="submit">Save</button>
-  </form>
-</section>
-
-<!-- ── License ─────────────────────────────────────────────────── -->
-<section class="card" id="license">
-  <div class="card-header">
-    <h2>License</h2>
-    {% if license.active %}
-      <span class="badge {{ 'warn' if license.status.value == 'expiring_soon' else 'pass' }}">
-        {{ license.plan.upper() }}
-      </span>
-    {% else %}
-      <span class="badge">FREE</span>
-    {% endif %}
-  </div>
-
-  {% if license.active %}
-  <div class="license-status-grid">
-    <div class="info-row">
-      <span class="info-label">Plan</span>
-      <span class="info-value">{{ license.plan.upper() }}</span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">Registered to</span>
-      <span class="info-value">{{ license.email }}</span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">Expires</span>
-      <span class="info-value {{ 'warn-text' if license.days_remaining <= 14 else '' }}">
-        {{ license.expires.strftime("%d %b %Y") }}
-        {% if license.days_remaining <= 14 %}
-          — <strong>{{ license.days_remaining }} day{{ 's' if license.days_remaining != 1 else '' }} remaining</strong>
+<!-- ── Scanning ───────────────────────────────────────────────────── -->
+<section class="card collapsible-card" id="settings-scanning">
+  <div class="card-summary" onclick="toggleSection('settings-scanning')">
+    <div class="summary-left">
+      <h2>Scanning</h2>
+      <div class="summary-chips">
+        {% if hibp_api_key_set %}
+          <span class="summary-chip pass-chip">HIBP</span>
         {% endif %}
-      </span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">Features</span>
-      <span class="info-value">
-        {% for f in license.features %}
-          <span class="feature-chip">{{ f.replace("_", " ").title() }}</span>
-        {% endfor %}
-      </span>
-    </div>
-  </div>
-
-  <div class="license-actions">
-    <p class="muted" style="margin-bottom:0.75rem">
-      To renew, paste your new key below. To remove the license and revert to Free, use the remove button.
-    </p>
-    <button hx-delete="/settings/license"
-            hx-target="#toast-container"
-            hx-confirm="Remove license and revert to Free tier?"
-            class="btn-danger">Remove license</button>
-  </div>
-  {% else %}
-
-  {% if license.status.value == 'invalid' %}
-  <div class="notice notice-fail" style="margin-bottom:1rem">
-    Last key was invalid: {{ license.error }}
-  </div>
-  {% endif %}
-
-  <div class="notice" style="margin-bottom:1rem">
-    You are on the <strong>Free tier</strong>. Upgrade to Pro for PDF reports, email digests, HIBP breach checks, and more.
-    Contact us to get a Pro licence key.
-  </div>
-  {% endif %}
-
-  <form hx-post="/settings/license"
-        hx-target="#toast-container"
-        hx-on::after-request="if(event.detail.successful) this.reset()"
-        class="settings-form">
-    <div class="field">
-      <label>{{ 'New license key' if license.active else 'License key' }}</label>
-      <input type="text" name="license_key" placeholder="CR-eyJ..." required
-             style="font-family:monospace;font-size:12px">
-    </div>
-    <button type="submit">Activate key</button>
-  </form>
-</section>
-
-<!-- ── Email Notifications ──────────────────────────────────────── -->
-<section class="card" id="email">
-  <div class="card-header">
-    <h2>Email Notifications</h2>
-    {% if smtp_host and email_recipient %}
-      <span class="badge pass">Configured</span>
-    {% else %}
-      <span class="badge">Not configured</span>
-    {% endif %}
-  </div>
-
-  {% if digest_next_run %}
-  <div class="notice" style="margin-bottom:1rem">
-    Next digest: <strong>{{ digest_next_run.strftime("%A %d %b %Y at %H:%M %Z") }}</strong>
-  </div>
-  {% endif %}
-
-  <form hx-post="/settings/email"
-        hx-target="#toast-container"
-        class="settings-form" style="max-width:480px">
-
-    <p class="section-label">SMTP</p>
-
-    <div style="display:grid;grid-template-columns:1fr auto;gap:0.5rem">
-      <div class="field">
-        <label>Host</label>
-        <input type="text" name="smtp_host" value="{{ smtp_host }}" placeholder="smtp.gmail.com">
-      </div>
-      <div class="field">
-        <label>Port</label>
-        <input type="number" name="smtp_port" value="{{ smtp_port }}" placeholder="587" style="width:80px">
+        {% if wpscan_api_key_set %}
+          <span class="summary-chip pass-chip">WPScan</span>
+        {% endif %}
+        {% if lan_next_run or (discovery_cidr and lan_scan_days) %}
+          <span class="summary-chip pass-chip">LAN scheduled</span>
+        {% else %}
+          <span class="summary-chip neutral-chip">LAN not scheduled</span>
+        {% endif %}
       </div>
     </div>
+    <span class="summary-chevron open" id="chevron-settings-scanning">›</span>
+  </div>
+  <div class="section-body expanded" id="body-settings-scanning">
+    <div class="section-body-inner" style="display:flex;flex-direction:column;gap:1.5rem">
 
-    <div class="field">
-      <label>Security</label>
-      <select name="smtp_tls" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:0.5rem 0.75rem;font-size:14px">
-        <option value="starttls" {{ 'selected' if smtp_tls == 'starttls' }}>STARTTLS (port 587)</option>
-        <option value="ssl"      {{ 'selected' if smtp_tls == 'ssl' }}>SSL / TLS (port 465)</option>
-        <option value="none"     {{ 'selected' if smtp_tls == 'none' }}>None (port 25)</option>
-      </select>
-    </div>
-
-    <div class="field">
-      <label>Username</label>
-      <input type="text" name="smtp_user" value="{{ smtp_user }}" placeholder="you@gmail.com" autocomplete="off">
-    </div>
-
-    <div class="field">
-      <label>Password</label>
-      <input type="password" name="smtp_password"
-             placeholder="{{ '••••••••  (saved — leave blank to keep)' if smtp_password_set else 'App password or SMTP password' }}"
-             autocomplete="new-password">
-    </div>
-
-    <div class="field">
-      <label>From address</label>
-      <input type="email" name="smtp_from" value="{{ smtp_from }}" placeholder="cyberready@company.com">
-    </div>
-
-    <hr>
-    <p class="section-label">Recipient &amp; Alerts</p>
-
-    <div class="field">
-      <label>Send reports &amp; alerts to</label>
-      <input type="email" name="email_recipient" value="{{ email_recipient }}" placeholder="admin@company.com">
-    </div>
-
-    <div class="toggle-row">
-      <label class="toggle-label">
-        <input type="hidden" name="email_alerts_enabled" value="false">
-        <input type="checkbox" name="email_alerts_enabled" value="true"
-               {{ 'checked' if email_alerts_enabled }}
-               onchange="this.previousElementSibling.value = this.checked ? 'true' : 'false'">
-        <span>Critical alerts</span>
-      </label>
-      <span class="field-hint">Email when new FAIL-level issues are found on domains or hosts.</span>
-    </div>
-
-    <hr>
-    <p class="section-label">Weekly Digest</p>
-
-    <div class="toggle-row">
-      <label class="toggle-label">
-        <input type="hidden" name="email_digest_enabled" value="false">
-        <input type="checkbox" name="email_digest_enabled" value="true"
-               {{ 'checked' if email_digest_enabled }}
-               onchange="this.previousElementSibling.value = this.checked ? 'true' : 'false'">
-        <span>Send weekly digest</span>
-      </label>
-    </div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">
-      <div class="field">
-        <label>Day</label>
-        <select name="digest_day" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:0.5rem 0.75rem;font-size:14px">
-          {% for val, label in [('mon','Monday'),('tue','Tuesday'),('wed','Wednesday'),('thu','Thursday'),('fri','Friday'),('sat','Saturday'),('sun','Sunday')] %}
-          <option value="{{ val }}" {{ 'selected' if digest_day == val }}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="field">
-        <label>Time</label>
-        <input type="time" name="digest_time" value="{{ digest_time }}">
-      </div>
-    </div>
-
-    <div style="display:flex;gap:0.75rem;align-items:center">
-      <button type="submit">Save email settings</button>
-      <button type="button"
-              hx-post="/settings/email/test"
+      <!-- DNS Servers -->
+      <div id="dns-settings">
+        <div class="card-header">
+          <h2>DNS Servers</h2>
+        </div>
+        <p class="muted" style="margin:0 0 1.25rem">
+          DNS servers used for domain checks (SPF, DMARC, DKIM, etc.). Public DNS ensures checks
+          work correctly regardless of your local network or VPN configuration.
+        </p>
+        <form hx-post="/settings/dns"
               hx-target="#toast-container"
-              class="btn-secondary">Send test email</button>
-    </div>
-  </form>
-</section>
-
-<!-- ── LAN Auto-Discovery ────────────────────────────────────────── -->
-<section class="card" id="discovery">
-  <div class="card-header">
-    <h2>LAN Auto-Discovery</h2>
-    {% if lan_next_run %}
-      <span class="badge pass">Enabled</span>
-    {% elif discovery_cidr and lan_scan_days %}
-      <span class="badge pass">Enabled</span>
-    {% else %}
-      <span class="badge">Disabled</span>
-    {% endif %}
-  </div>
-
-  {% if lan_next_run %}
-  <div class="notice" style="margin-bottom:1rem">
-    Next scheduled scan: <strong>{{ lan_next_run.strftime("%A %d %b %Y at %H:%M %Z") }}</strong>
-  </div>
-  {% elif not discovery_cidr %}
-  <div class="notice" style="margin-bottom:1rem">
-    Auto-discovery is not yet configured. Run a manual scan first, or enter a CIDR range below.
-  </div>
-  {% endif %}
-
-  <form hx-post="/settings/discovery"
-        hx-target="#toast-container"
-        class="settings-form">
-
-    <div class="field">
-      <label>CIDR range to scan</label>
-      <input type="text" name="cidr" value="{{ discovery_cidr }}"
-             placeholder="e.g. 192.168.0.0/24, 192.168.1.0/24" style="font-family:monospace;max-width:380px">
-      <span class="field-hint">Comma-separate multiple ranges. Automatically saved when you run a manual discover.</span>
-    </div>
-
-    <div class="field">
-      <label>Scan time</label>
-      <input type="time" name="time" value="{{ lan_scan_time }}" style="width:auto">
-      <span class="field-hint">Time of day (24h) to run the scan.</span>
-    </div>
-
-    <div class="field">
-      <label>Days to scan</label>
-      <div class="day-picker">
-        {% for day, label in [("mon","Mon"),("tue","Tue"),("wed","Wed"),("thu","Thu"),("fri","Fri"),("sat","Sat"),("sun","Sun")] %}
-        <label class="day-chip {{ 'active' if day in lan_scan_days else '' }}">
-          <input type="checkbox" name="days" value="{{ day }}"
-                 {{ 'checked' if day in lan_scan_days else '' }}
-                 onchange="this.closest('label').classList.toggle('active', this.checked)">
-          {{ label }}
-        </label>
-        {% endfor %}
+              class="settings-form">
+          <div class="field">
+            <label>Nameservers <span class="muted">(comma-separated IPs)</span></label>
+            <input type="text" name="dns_servers" value="{{ dns_servers }}"
+                   placeholder="1.1.1.1, 8.8.8.8" style="max-width:320px">
+            <div class="field-hint">
+              Default: Cloudflare (1.1.1.1) and Google (8.8.8.8).
+              Add your internal resolver IP here if you need to check private/internal domains.
+            </div>
+          </div>
+          <button type="submit">Save</button>
+        </form>
       </div>
-      <span class="field-hint">Uncheck all days to disable auto-discovery entirely.</span>
-    </div>
 
-    <button type="submit">Save schedule</button>
-  </form>
+      <hr style="border-color:var(--border)">
+
+      <!-- LAN Auto-Discovery -->
+      <div id="discovery">
+        <div class="card-header">
+          <h2>LAN Auto-Discovery</h2>
+          {% if lan_next_run or (discovery_cidr and lan_scan_days) %}
+            <span class="badge pass">Enabled</span>
+          {% else %}
+            <span class="badge">Disabled</span>
+          {% endif %}
+        </div>
+
+        {% if lan_next_run %}
+        <div class="notice" style="margin-bottom:1rem">
+          Next scheduled scan: <strong>{{ lan_next_run.strftime("%A %d %b %Y at %H:%M %Z") }}</strong>
+        </div>
+        {% elif not discovery_cidr %}
+        <div class="notice" style="margin-bottom:1rem">
+          Auto-discovery is not yet configured. Run a manual scan first, or enter a CIDR range below.
+        </div>
+        {% endif %}
+
+        <form hx-post="/settings/discovery"
+              hx-target="#toast-container"
+              class="settings-form">
+          <div class="field">
+            <label>CIDR range to scan</label>
+            <input type="text" name="cidr" value="{{ discovery_cidr }}"
+                   placeholder="e.g. 192.168.0.0/24, 192.168.1.0/24" style="font-family:monospace;max-width:380px">
+            <span class="field-hint">Comma-separate multiple ranges. Automatically saved when you run a manual discover.</span>
+          </div>
+          <div class="field">
+            <label>Scan time</label>
+            <input type="time" name="time" value="{{ lan_scan_time }}" style="width:auto">
+            <span class="field-hint">Time of day (24h) to run the scan.</span>
+          </div>
+          <div class="field">
+            <label>Days to scan</label>
+            <div class="day-picker">
+              {% for day, label in [("mon","Mon"),("tue","Tue"),("wed","Wed"),("thu","Thu"),("fri","Fri"),("sat","Sat"),("sun","Sun")] %}
+              <label class="day-chip {{ 'active' if day in lan_scan_days else '' }}">
+                <input type="checkbox" name="days" value="{{ day }}"
+                       {{ 'checked' if day in lan_scan_days else '' }}
+                       onchange="this.closest('label').classList.toggle('active', this.checked)">
+                {{ label }}
+              </label>
+              {% endfor %}
+            </div>
+            <span class="field-hint">Uncheck all days to disable auto-discovery entirely.</span>
+          </div>
+          <button type="submit">Save schedule</button>
+        </form>
+      </div>
+
+      <hr style="border-color:var(--border)">
+
+      <!-- Breach Monitoring -->
+      <div id="breach-settings">
+        <div class="card-header">
+          <h2>Breach Monitoring</h2>
+          {% if hibp_api_key_set %}<span class="badge pass">HIBP configured</span>
+          {% else %}<span class="badge">HIBP not configured</span>{% endif %}
+        </div>
+        <p class="muted" style="margin:0 0 1.25rem">
+          An API key from <strong>haveibeenpwned.com</strong> is required to check email addresses against
+          known breach databases. The password checker works without a key and is always free.
+        </p>
+        <form hx-post="/settings/hibp"
+              hx-target="#toast-container"
+              class="settings-form">
+          <div class="field">
+            <label>HIBP API key</label>
+            <input type="password" name="hibp_api_key"
+                   placeholder="{% if hibp_api_key_set %}Key saved — enter a new one to replace{% else %}Paste your HIBP API key here{% endif %}"
+                   autocomplete="off">
+            <div class="field-hint">
+              Get a key at <strong>haveibeenpwned.com/API/Key</strong> — needed for email breach checks only.
+              Billing is monthly. The Pwned Passwords check (dashboard) works without a key.
+            </div>
+          </div>
+          <button type="submit">Save</button>
+        </form>
+      </div>
+
+      <hr style="border-color:var(--border)">
+
+      <!-- WordPress Scanning -->
+      <div id="wpscan-settings">
+        <div class="card-header">
+          <h2>WordPress Scanning</h2>
+          {% if wpscan_api_key_set %}<span class="badge pass">WPScan API key configured</span>
+          {% else %}<span class="badge">No API key — basic detection only</span>{% endif %}
+        </div>
+        <p class="muted" style="margin:0 0 1.25rem">
+          TipOff detects WordPress on LAN hosts automatically (free). Adding a WPScan API key
+          enables CVE lookups for WordPress core, plugins and themes (Pro).
+          Get a free key at <strong>wpscan.com</strong> — free tier includes 25 API requests per day.
+        </p>
+        <form hx-post="/settings/wpscan"
+              hx-target="#toast-container"
+              class="settings-form">
+          <div class="field">
+            <label>WPScan API key</label>
+            <input type="password" name="wpscan_api_key"
+                   placeholder="{% if wpscan_api_key_set %}Key saved — enter a new one to replace{% else %}Paste your WPScan API key here{% endif %}"
+                   autocomplete="off">
+          </div>
+          <button type="submit">Save</button>
+        </form>
+      </div>
+
+    </div>
+  </div>
 </section>
 
-<!-- ── Login Credentials ────────────────────────────────────────── -->
-<section class="card">
-  <div class="card-header">
-    <h2>Login Credentials</h2>
+<!-- ── Notifications ──────────────────────────────────────────────── -->
+<section class="card collapsible-card" id="settings-notifications">
+  <div class="card-summary" onclick="toggleSection('settings-notifications')">
+    <div class="summary-left">
+      <h2>Notifications</h2>
+      <div class="summary-chips">
+        {% if smtp_host and email_recipient %}
+          <span class="summary-chip pass-chip">Email configured</span>
+          {% if email_alerts_enabled %}<span class="summary-chip pass-chip">Alerts on</span>{% endif %}
+          {% if email_digest_enabled %}<span class="summary-chip pass-chip">Digest on</span>{% endif %}
+        {% else %}
+          <span class="summary-chip neutral-chip">Email not configured</span>
+        {% endif %}
+      </div>
+    </div>
+    <span class="summary-chevron open" id="chevron-settings-notifications">›</span>
   </div>
+  <div class="section-body expanded" id="body-settings-notifications">
+    <div class="section-body-inner">
 
-  {% if env_locked %}
-  <div class="notice">
-    Credentials are controlled by environment variables (<code>TIPOFF_USERNAME</code> / <code>TIPOFF_PASSWORD</code>)
-    and cannot be changed here. Edit your <code>docker-compose.yml</code> to update them.
+      <div id="email">
+        <div class="card-header">
+          <h2>Email Notifications</h2>
+          {% if smtp_host and email_recipient %}
+            <span class="badge pass">Configured</span>
+          {% else %}
+            <span class="badge">Not configured</span>
+          {% endif %}
+        </div>
+
+        {% if digest_next_run %}
+        <div class="notice" style="margin-bottom:1rem">
+          Next digest: <strong>{{ digest_next_run.strftime("%A %d %b %Y at %H:%M %Z") }}</strong>
+        </div>
+        {% endif %}
+
+        <form hx-post="/settings/email"
+              hx-target="#toast-container"
+              class="settings-form" style="max-width:480px">
+
+          <p class="section-label">SMTP</p>
+
+          <div style="display:grid;grid-template-columns:1fr auto;gap:0.5rem">
+            <div class="field">
+              <label>Host</label>
+              <input type="text" name="smtp_host" value="{{ smtp_host }}" placeholder="smtp.gmail.com">
+            </div>
+            <div class="field">
+              <label>Port</label>
+              <input type="number" name="smtp_port" value="{{ smtp_port }}" placeholder="587" style="width:80px">
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Security</label>
+            <select name="smtp_tls" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:0.5rem 0.75rem;font-size:14px">
+              <option value="starttls" {{ 'selected' if smtp_tls == 'starttls' }}>STARTTLS (port 587)</option>
+              <option value="ssl"      {{ 'selected' if smtp_tls == 'ssl' }}>SSL / TLS (port 465)</option>
+              <option value="none"     {{ 'selected' if smtp_tls == 'none' }}>None (port 25)</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>Username</label>
+            <input type="text" name="smtp_user" value="{{ smtp_user }}" placeholder="you@gmail.com" autocomplete="off">
+          </div>
+
+          <div class="field">
+            <label>Password</label>
+            <input type="password" name="smtp_password"
+                   placeholder="{{ '••••••••  (saved — leave blank to keep)' if smtp_password_set else 'App password or SMTP password' }}"
+                   autocomplete="new-password">
+          </div>
+
+          <div class="field">
+            <label>From address</label>
+            <input type="email" name="smtp_from" value="{{ smtp_from }}" placeholder="tipoff@company.com">
+          </div>
+
+          <hr>
+          <p class="section-label">Recipient &amp; Alerts</p>
+
+          <div class="field">
+            <label>Send reports &amp; alerts to</label>
+            <input type="email" name="email_recipient" value="{{ email_recipient }}" placeholder="admin@company.com">
+          </div>
+
+          <div class="toggle-row">
+            <label class="toggle-label">
+              <input type="hidden" name="email_alerts_enabled" value="false">
+              <input type="checkbox" name="email_alerts_enabled" value="true"
+                     {{ 'checked' if email_alerts_enabled }}
+                     onchange="this.previousElementSibling.value = this.checked ? 'true' : 'false'">
+              <span>Critical alerts</span>
+            </label>
+            <span class="field-hint">Email when new FAIL-level issues are found on domains or hosts.</span>
+          </div>
+
+          <hr>
+          <p class="section-label">Weekly Digest</p>
+
+          <div class="toggle-row">
+            <label class="toggle-label">
+              <input type="hidden" name="email_digest_enabled" value="false">
+              <input type="checkbox" name="email_digest_enabled" value="true"
+                     {{ 'checked' if email_digest_enabled }}
+                     onchange="this.previousElementSibling.value = this.checked ? 'true' : 'false'">
+              <span>Send weekly digest</span>
+            </label>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">
+            <div class="field">
+              <label>Day</label>
+              <select name="digest_day" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:0.5rem 0.75rem;font-size:14px">
+                {% for val, label in [('mon','Monday'),('tue','Tuesday'),('wed','Wednesday'),('thu','Thursday'),('fri','Friday'),('sat','Saturday'),('sun','Sunday')] %}
+                <option value="{{ val }}" {{ 'selected' if digest_day == val }}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="field">
+              <label>Time</label>
+              <input type="time" name="digest_time" value="{{ digest_time }}">
+            </div>
+          </div>
+
+          <div style="display:flex;gap:0.75rem;align-items:center">
+            <button type="submit">Save email settings</button>
+            <button type="button"
+                    hx-post="/settings/email/test"
+                    hx-target="#toast-container"
+                    class="btn-secondary">Send test email</button>
+          </div>
+        </form>
+      </div>
+
+    </div>
   </div>
-  {% else %}
-  <form hx-post="/settings/credentials"
-        hx-target="#toast-container"
-        class="settings-form">
-
-    <div class="field">
-      <label>Current username</label>
-      <input type="text" value="{{ current_username }}" disabled>
-    </div>
-
-    <div class="field">
-      <label>Current password</label>
-      <input type="password" name="current_password" required autocomplete="current-password">
-    </div>
-
-    <hr>
-
-    <div class="field">
-      <label>New username</label>
-      <input type="text" name="new_username" value="{{ current_username }}" required autocomplete="username">
-    </div>
-
-    <div class="field">
-      <label>New password <span class="muted">(min 8 characters)</span></label>
-      <input type="password" name="new_password" required minlength="8" autocomplete="new-password">
-    </div>
-
-    <div class="field">
-      <label>Confirm new password</label>
-      <input type="password" name="confirm_password" required minlength="8" autocomplete="new-password">
-    </div>
-
-    <button type="submit">Update credentials</button>
-  </form>
-  {% endif %}
 </section>
 
-<!-- ── Shareable Read-Only Link ──────────────────────────────────────────────── -->
-<section class="card" id="sharelink">
-  <div class="card-header">
-    <h2>Shareable Read-Only Link</h2>
-    {% if share_url %}<span class="badge pass">Active</span>{% else %}<span class="badge">Disabled</span>{% endif %}
-  </div>
-  <p class="muted" style="margin:0 0 1.25rem">
-    Anyone with this link gets a read-only dashboard view — no login required. Useful for sharing
-    with a manager or client on the same network.
-  </p>
-
-  <form hx-post="/settings/readonly/generate"
-        hx-target="#share-link-result"
-        hx-swap="innerHTML"
-        class="settings-form">
-    <div class="field">
-      <label>Base URL <span class="muted">(optional)</span></label>
-      <input type="text" name="base_url" value="{{ base_url }}"
-             placeholder="{{ detected_url }}" style="max-width:320px">
-      <div class="field-hint">e.g. http://tipoff.lan:8080 — leave blank to use the auto-detected IP</div>
+<!-- ── Account ────────────────────────────────────────────────────── -->
+<section class="card collapsible-card" id="settings-account">
+  <div class="card-summary" onclick="toggleSection('settings-account')">
+    <div class="summary-left">
+      <h2>Account</h2>
+      <div class="summary-chips">
+        <span class="summary-chip neutral-chip">{{ current_username }}</span>
+        {% if share_url %}
+          <span class="summary-chip pass-chip">Read-only link active</span>
+        {% endif %}
+      </div>
     </div>
-    <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
-      <button type="submit">{% if share_url %}Regenerate link{% else %}Generate link{% endif %}</button>
-      {% if share_url %}
-      <button type="button"
-              hx-delete="/settings/readonly"
+    <span class="summary-chevron open" id="chevron-settings-account">›</span>
+  </div>
+  <div class="section-body expanded" id="body-settings-account">
+    <div class="section-body-inner" style="display:flex;flex-direction:column;gap:1.5rem">
+
+      <!-- Login Credentials -->
+      <div>
+        <div class="card-header">
+          <h2>Login Credentials</h2>
+        </div>
+
+        {% if env_locked %}
+        <div class="notice">
+          Credentials are controlled by environment variables (<code>TIPOFF_USERNAME</code> / <code>TIPOFF_PASSWORD</code>)
+          and cannot be changed here. Edit your <code>docker-compose.yml</code> to update them.
+        </div>
+        {% else %}
+        <form hx-post="/settings/credentials"
+              hx-target="#toast-container"
+              class="settings-form">
+          <div class="field">
+            <label>Current username</label>
+            <input type="text" value="{{ current_username }}" disabled>
+          </div>
+          <div class="field">
+            <label>Current password</label>
+            <input type="password" name="current_password" required autocomplete="current-password">
+          </div>
+          <hr>
+          <div class="field">
+            <label>New username</label>
+            <input type="text" name="new_username" value="{{ current_username }}" required autocomplete="username">
+          </div>
+          <div class="field">
+            <label>New password <span class="muted">(min 8 characters)</span></label>
+            <input type="password" name="new_password" required minlength="8" autocomplete="new-password">
+          </div>
+          <div class="field">
+            <label>Confirm new password</label>
+            <input type="password" name="confirm_password" required minlength="8" autocomplete="new-password">
+          </div>
+          <button type="submit">Update credentials</button>
+        </form>
+        {% endif %}
+      </div>
+
+      <hr style="border-color:var(--border)">
+
+      <!-- Shareable Read-Only Link -->
+      <div id="sharelink">
+        <div class="card-header">
+          <h2>Shareable Read-Only Link</h2>
+          {% if share_url %}<span class="badge pass">Active</span>{% else %}<span class="badge">Disabled</span>{% endif %}
+        </div>
+        <p class="muted" style="margin:0 0 1.25rem">
+          Anyone with this link gets a read-only dashboard view — no login required. Useful for sharing
+          with a manager or client on the same network.
+        </p>
+
+        <form hx-post="/settings/readonly/generate"
               hx-target="#share-link-result"
               hx-swap="innerHTML"
-              hx-confirm="Revoke this link? Anyone using it will lose access immediately."
-              class="btn-secondary">Revoke link</button>
-      {% endif %}
-    </div>
-  </form>
+              class="settings-form">
+          <div class="field">
+            <label>Base URL <span class="muted">(optional)</span></label>
+            <input type="text" name="base_url" value="{{ base_url }}"
+                   placeholder="{{ detected_url }}" style="max-width:320px">
+            <div class="field-hint">e.g. http://tipoff.lan:8080 — leave blank to use the auto-detected IP</div>
+          </div>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+            <button type="submit">{% if share_url %}Regenerate link{% else %}Generate link{% endif %}</button>
+            {% if share_url %}
+            <button type="button"
+                    hx-delete="/settings/readonly"
+                    hx-target="#share-link-result"
+                    hx-swap="innerHTML"
+                    hx-confirm="Revoke this link? Anyone using it will lose access immediately."
+                    class="btn-secondary">Revoke link</button>
+            {% endif %}
+          </div>
+        </form>
 
-  <div id="share-link-result" style="margin-top:1rem">
-    {% if share_url %}
-    <div class="share-link-box">
-      <span class="share-link-url">{{ share_url }}</span>
-      <button type="button" class="btn-copy"
-              onclick="navigator.clipboard.writeText('{{ share_url }}').then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',2000)})">Copy</button>
+        <div id="share-link-result" style="margin-top:1rem">
+          {% if share_url %}
+          <div class="share-link-box">
+            <span class="share-link-url">{{ share_url }}</span>
+            <button type="button" class="btn-copy"
+                    onclick="navigator.clipboard.writeText('{{ share_url }}').then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',2000)})">Copy</button>
+          </div>
+          <p class="field-hint" style="margin-top:.4rem">Anyone on the same network with this link gets read-only dashboard access — no login required.</p>
+          {% else %}
+          <p class="muted" style="margin:0">No active link. Generate one above.</p>
+          {% endif %}
+        </div>
+      </div>
+
     </div>
-    <p class="field-hint" style="margin-top:.4rem">Anyone on the same network with this link gets read-only dashboard access — no login required.</p>
-    {% else %}
-    <p class="muted" style="margin:0">No active link. Generate one above.</p>
-    {% endif %}
   </div>
 </section>
+
+<!-- ── Licence ────────────────────────────────────────────────────── -->
+<section class="card collapsible-card" id="settings-licence">
+  <div class="card-summary" onclick="toggleSection('settings-licence')">
+    <div class="summary-left">
+      <h2>Licence</h2>
+      <div class="summary-chips">
+        {% if license.active %}
+          <span class="summary-chip {{ 'warn-chip' if license.status.value == 'expiring_soon' else 'pass-chip' }}">
+            {{ license.plan.upper() }}
+          </span>
+          {% if license.days_remaining <= 14 %}
+            <span class="summary-chip warn-chip">Expires in {{ license.days_remaining }}d</span>
+          {% endif %}
+        {% else %}
+          <span class="summary-chip neutral-chip">FREE</span>
+        {% endif %}
+      </div>
+    </div>
+    <span class="summary-chevron open" id="chevron-settings-licence">›</span>
+  </div>
+  <div class="section-body expanded" id="body-settings-licence">
+    <div class="section-body-inner">
+
+      <div id="license">
+        <div class="card-header">
+          <h2>License</h2>
+          {% if license.active %}
+            <span class="badge {{ 'warn' if license.status.value == 'expiring_soon' else 'pass' }}">
+              {{ license.plan.upper() }}
+            </span>
+          {% else %}
+            <span class="badge">FREE</span>
+          {% endif %}
+        </div>
+
+        {% if license.active %}
+        <div class="license-status-grid">
+          <div class="info-row">
+            <span class="info-label">Plan</span>
+            <span class="info-value">{{ license.plan.upper() }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Registered to</span>
+            <span class="info-value">{{ license.email }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Expires</span>
+            <span class="info-value {{ 'warn-text' if license.days_remaining <= 14 else '' }}">
+              {{ license.expires.strftime("%d %b %Y") }}
+              {% if license.days_remaining <= 14 %}
+                — <strong>{{ license.days_remaining }} day{{ 's' if license.days_remaining != 1 else '' }} remaining</strong>
+              {% endif %}
+            </span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Features</span>
+            <span class="info-value">
+              {% for f in license.features %}
+                <span class="feature-chip">{{ f.replace("_", " ").title() }}</span>
+              {% endfor %}
+            </span>
+          </div>
+        </div>
+
+        <div class="license-actions">
+          <p class="muted" style="margin-bottom:0.75rem">
+            To renew, paste your new key below. To remove the license and revert to Free, use the remove button.
+          </p>
+          <button hx-delete="/settings/license"
+                  hx-target="#toast-container"
+                  hx-confirm="Remove license and revert to Free tier?"
+                  class="btn-danger">Remove license</button>
+        </div>
+        {% else %}
+
+        {% if license.status.value == 'invalid' %}
+        <div class="notice notice-fail" style="margin-bottom:1rem">
+          Last key was invalid: {{ license.error }}
+        </div>
+        {% endif %}
+
+        <div class="notice" style="margin-bottom:1rem">
+          You are on the <strong>Free tier</strong>. Upgrade to Pro for PDF reports, email digests, HIBP breach checks, and more.
+          Contact us to get a Pro licence key.
+        </div>
+        {% endif %}
+
+        <form hx-post="/settings/license"
+              hx-target="#toast-container"
+              hx-on::after-request="if(event.detail.successful) this.reset()"
+              class="settings-form">
+          <div class="field">
+            <label>{{ 'New license key' if license.active else 'License key' }}</label>
+            <input type="text" name="license_key" placeholder="CR-eyJ..." required
+                   style="font-family:monospace;font-size:12px">
+          </div>
+          <button type="submit">Activate key</button>
+        </form>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<script>
+  function toggleSection(id) {
+    const body    = document.getElementById('body-' + id);
+    const chevron = document.getElementById('chevron-' + id);
+    if (!body) return;
+    const expanded = body.classList.toggle('expanded');
+    if (chevron) chevron.classList.toggle('open', expanded);
+    try { localStorage.setItem('tipoff-settings-' + id, expanded ? '1' : '0'); } catch(e) {}
+  }
+
+  // Restore saved state
+  ['settings-scanning', 'settings-notifications', 'settings-account', 'settings-licence'].forEach(id => {
+    const saved = localStorage.getItem('tipoff-settings-' + id);
+    if (saved === '0') {
+      const body    = document.getElementById('body-' + id);
+      const chevron = document.getElementById('chevron-' + id);
+      if (body)    body.classList.remove('expanded');
+      if (chevron) chevron.classList.remove('open');
+    }
+  });
+</script>
 
 {% endblock %}

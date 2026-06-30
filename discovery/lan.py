@@ -1,18 +1,21 @@
-import asyncio, ipaddress, socket
+import asyncio, ipaddress, socket, struct
 import nmap
 import manuf as manuf_lib
+import dns.message
+import dns.query
+import dns.rdatatype
+import dns.reversename
 
 
 def _read_arp_cache() -> dict[str, dict]:
-    """Read the kernel ARP cache from /proc/net/arp — populated automatically by ping."""
+    """Read the kernel ARP cache from /proc/net/arp."""
     result = {}
     parser = manuf_lib.MacParser()
     try:
         with open("/proc/net/arp") as f:
-            next(f)  # skip header line
+            next(f)
             for line in f:
                 parts = line.split()
-                # flags 0x2 = complete entry (not incomplete/stale)
                 if len(parts) >= 4 and parts[2] == "0x2" and parts[3] != "00:00:00:00:00:00":
                     ip  = parts[0]
                     mac = parts[3]
@@ -42,16 +45,142 @@ async def ping_sweep(cidr: str) -> list[str]:
     return [ip for ip in results if ip is not None]
 
 
+# ── Hostname resolution ────────────────────────────────────────────────────────
+
+async def _lookup_hostname(ip: str) -> str:
+    """Try reverse DNS → mDNS → NetBIOS in order, return first hit."""
+    loop = asyncio.get_event_loop()
+
+    # 1. Reverse DNS (PTR record)
+    try:
+        name = await loop.run_in_executor(None, lambda: socket.gethostbyaddr(ip)[0])
+        if name and name != ip:
+            return name
+    except Exception:
+        pass
+
+    # 2. mDNS — unicast query directly to device on port 5353 (Apple, Linux)
+    name = await _mdns_lookup(ip, loop)
+    if name:
+        return name
+
+    # 3. NetBIOS node status — Windows and Samba machines
+    name = await _netbios_lookup(ip, loop)
+    if name:
+        return name
+
+    return ""
+
+
+async def _mdns_lookup(ip: str, loop: asyncio.AbstractEventLoop) -> str | None:
+    """Send a unicast mDNS PTR query to the device on port 5353."""
+    def _query():
+        try:
+            rev = dns.reversename.from_address(ip)
+            request = dns.message.make_query(rev, dns.rdatatype.PTR)
+            request.flags = 0  # clear RD flag — mDNS doesn't use recursion
+            response = dns.query.udp(request, ip, port=5353, timeout=0.5)
+            for rrset in response.answer:
+                for rdata in rrset:
+                    name = str(rdata.target).rstrip(".")
+                    # Strip .local suffix, return just the hostname part
+                    return name.replace(".local", "").split(".")[0] or None
+        except Exception:
+            pass
+        return None
+
+    try:
+        return await asyncio.wait_for(loop.run_in_executor(None, _query), timeout=1.0)
+    except Exception:
+        return None
+
+
+# NetBIOS Node Status Request:
+#   header (12) + encoded wildcard name (34) + type/class (4)
+_NETBIOS_QUERY = (
+    b"\xa4\x91\x00\x00"  # transaction ID + flags (standard query)
+    b"\x00\x01"          # QDCOUNT = 1
+    b"\x00\x00\x00\x00\x00\x00"  # ANCOUNT, NSCOUNT, ARCOUNT
+    b"\x20"              # name length = 32
+    + b"CK" + b"CA" * 14 + b"AA"  # "*" + 14 spaces + null byte, NetBIOS-encoded
+    + b"\x00"            # end of name
+    + b"\x00\x21"        # type NBSTAT
+    + b"\x00\x01"        # class IN
+)
+
+
+async def _netbios_lookup(ip: str, loop: asyncio.AbstractEventLoop) -> str | None:
+    """Send a NetBIOS Node Status request and extract the machine name."""
+    def _query():
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(0.5)
+        try:
+            sock.sendto(_NETBIOS_QUERY, (ip, 137))
+            data, _ = sock.recvfrom(1024)
+            return _parse_netbios(data)
+        except Exception:
+            return None
+        finally:
+            sock.close()
+
+    try:
+        return await asyncio.wait_for(loop.run_in_executor(None, _query), timeout=1.0)
+    except Exception:
+        return None
+
+
+def _parse_netbios(data: bytes) -> str | None:
+    """Extract the workstation name from a NetBIOS Node Status response."""
+    try:
+        # Skip header (12) + question section (38 bytes: 1+32+1+2+2)
+        offset = 50
+        if len(data) <= offset:
+            return None
+
+        # Skip answer RR name — usually a 2-byte compressed pointer
+        if data[offset] == 0xC0:
+            offset += 2
+        else:
+            while offset < len(data) and data[offset]:
+                offset += data[offset] + 1
+            offset += 1
+
+        # Skip type(2) + class(2) + TTL(4) + rdlength(2)
+        offset += 10
+        if offset >= len(data):
+            return None
+
+        num_names = data[offset]
+        offset += 1
+
+        for _ in range(min(num_names, 20)):
+            if offset + 18 > len(data):
+                break
+            name  = data[offset:offset + 15].decode("ascii", errors="ignore").rstrip()
+            ntype = data[offset + 15]
+            flags = struct.unpack("!H", data[offset + 16:offset + 18])[0]
+            offset += 18
+            # type 0x00 = workstation/server name; skip group names (0x8000 flag)
+            if ntype == 0x00 and not (flags & 0x8000):
+                return name.strip() or None
+
+        return None
+    except Exception:
+        return None
+
+
+# ── Port scanning ──────────────────────────────────────────────────────────────
+
 def port_scan(ip: str) -> dict:
     nm = nmap.PortScanner()
     try:
         nm.scan(ip, "21,22,23,80,443,445,3389,5900,8080,8443", arguments="-sV -T4 --open")
     except Exception:
-        return {"ip": ip, "hostname": "", "os_guess": "Unknown", "open_ports": [], "flagged": False}
+        return {"ip": ip, "os_guess": "Unknown", "open_ports": [], "flagged": False}
 
     host_data = nm[ip] if ip in nm.all_hosts() else {}
     open_ports = []
-    flagged = False
+    flagged    = False
 
     for port, info in host_data.get("tcp", {}).items():
         if info["state"] == "open":
@@ -59,42 +188,31 @@ def port_scan(ip: str) -> dict:
             if dangerous:
                 flagged = True
             open_ports.append({
-                "port": port,
+                "port":    port,
                 "service": info.get("name", ""),
                 "version": info.get("version", ""),
                 "dangerous": dangerous,
             })
 
-    hostname = ""
-    try:
-        hostname = socket.gethostbyaddr(ip)[0]
-    except socket.herror:
-        pass
-
     return {
-        "ip": ip,
-        "hostname": hostname,
-        "os_guess": host_data.get("osmatch", [{}])[0].get("name", "Unknown") if host_data else "Unknown",
+        "ip":         ip,
+        "os_guess":   host_data.get("osmatch", [{}])[0].get("name", "Unknown") if host_data else "Unknown",
         "open_ports": open_ports,
-        "flagged": flagged,
+        "flagged":    flagged,
     }
 
 
 async def rescan_host(ip: str) -> dict:
-    """Run a fresh port scan on a single IP and return the updated host dict."""
     loop = asyncio.get_event_loop()
     scan_data = await loop.run_in_executor(None, port_scan, ip)
+    hostname  = await _lookup_hostname(ip)
     arp_cache = _read_arp_cache()
-    arp_data = arp_cache.get(ip, {"mac": "", "vendor": ""})
-    return {**arp_data, **scan_data}
+    arp_data  = arp_cache.get(ip, {"mac": "", "vendor": ""})
+    return {**arp_data, **scan_data, "hostname": hostname}
 
 
 async def discover_network(cidr: str, progress: dict | None = None) -> list[dict]:
-    """Ping sweep → ARP cache for MACs → parallel nmap per live host.
-
-    progress dict is updated in-place so callers can poll it:
-      {"stage": str, "hosts_found": int, "scanned": int, "total": int}
-    """
+    """Ping sweep → ARP cache for MACs → parallel nmap + hostname lookup per live host."""
     def _update(stage=None, **kw):
         if progress is not None:
             if stage:
@@ -105,26 +223,23 @@ async def discover_network(cidr: str, progress: dict | None = None) -> list[dict
     live_ips = await ping_sweep(cidr)
     _update(hosts_found=len(live_ips))
 
+    # Wait for ARP cache to settle after ping sweep before reading it
+    await asyncio.sleep(1.0)
     arp_cache = _read_arp_cache()
 
     _update(stage=f"Port scanning {len(live_ips)} live hosts…", total=len(live_ips), scanned=0)
 
     loop = asyncio.get_event_loop()
-    sem = asyncio.Semaphore(8)  # max 8 concurrent nmap scans
+    sem  = asyncio.Semaphore(8)
 
     async def _scan(ip: str) -> dict:
         async with sem:
-            result = await loop.run_in_executor(None, port_scan, ip)
+            scan_data = await loop.run_in_executor(None, port_scan, ip)
+            hostname  = await _lookup_hostname(ip)
             if progress is not None:
                 progress["scanned"] = progress.get("scanned", 0) + 1
-                progress["stage"] = f"Scanning hosts… {progress['scanned']}/{progress['total']}"
-            return result
+                progress["stage"]   = f"Scanning hosts… {progress['scanned']}/{progress['total']}"
+            arp_data = arp_cache.get(ip, {"mac": "", "vendor": ""})
+            return {**arp_data, **scan_data, "hostname": hostname}
 
-    scan_results = await asyncio.gather(*[_scan(ip) for ip in live_ips])
-
-    hosts = []
-    for ip, scan_data in zip(live_ips, scan_results):
-        arp_data = arp_cache.get(ip, {"mac": "", "vendor": ""})
-        hosts.append({**arp_data, **scan_data})
-
-    return hosts
+    return await asyncio.gather(*[_scan(ip) for ip in live_ips])

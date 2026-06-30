@@ -413,7 +413,10 @@ async def run_due_scans():
             try:
                 results = await scan_domain(domain.hostname)
                 await db.execute(
-                    delete(ScanResult).where(ScanResult.domain_id == domain.id)
+                    delete(ScanResult).where(
+                        ScanResult.domain_id == domain.id,
+                        ScanResult.check_id != "wordpress_vulns",
+                    )
                 )
                 for r in results:
                     db.add(ScanResult(
@@ -712,10 +715,37 @@ async def wpscan_domain(
     api_key = _wpscan_api_key if _license.has_feature("pdf") else None
     result  = await _wpscan.run_for_domain(domain.hostname, api_key)
 
-    domain.is_wordpress   = result["detected"]
-    domain.wp_version     = result.get("version")
-    domain.wp_scan_at     = datetime.now(timezone.utc)
+    domain.is_wordpress    = result["detected"]
+    domain.wp_version      = result.get("version")
+    domain.wp_scan_at      = datetime.now(timezone.utc)
     domain.wp_scan_results = result
+    await db.commit()
+
+    # Remove old WP scan result then write fresh one
+    await db.execute(delete(ScanResult).where(
+        ScanResult.domain_id == domain_id,
+        ScanResult.check_id  == "wordpress_vulns",
+    ))
+    if result["detected"] and result.get("api_used"):
+        vulns     = result.get("vulnerabilities", [])
+        n_vulns   = len(vulns)
+        has_crit  = any(v.get("cvss") and v["cvss"] >= 9 for v in vulns)
+        has_high  = any(v.get("cvss") and v["cvss"] >= 7 for v in vulns)
+        if n_vulns > 0:
+            impact = 12 if has_crit else (8 if has_high else 4)
+            titles = "; ".join(v["title"] for v in vulns[:5])
+            if n_vulns > 5:
+                titles += f" (+{n_vulns - 5} more)"
+            db.add(ScanResult(
+                domain_id    = domain_id,
+                check_id     = "wordpress_vulns",
+                status       = "fail",
+                title        = f"WordPress: {n_vulns} known vulnerabilit{'y' if n_vulns == 1 else 'ies'}",
+                detail       = titles,
+                remediation  = "Update WordPress core, plugins and themes to their latest versions.",
+                score_impact = impact,
+                raw          = {"count": n_vulns, "has_critical": has_crit, "has_high": has_high},
+            ))
     await db.commit()
     await db.refresh(domain)
 
@@ -1418,7 +1448,10 @@ async def _scan_and_store(hostname: str):
             return
         try:
             results = await scan_domain(hostname)
-            await db.execute(delete(ScanResult).where(ScanResult.domain_id == domain.id))
+            await db.execute(delete(ScanResult).where(
+                ScanResult.domain_id == domain.id,
+                ScanResult.check_id != "wordpress_vulns",
+            ))
             for r in results:
                 db.add(ScanResult(
                     domain_id=domain.id,

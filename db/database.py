@@ -23,6 +23,8 @@ class Domain(Base):
     last_scan_at      = Column(DateTime, nullable=True)
     alerted_fail_ids  = Column(String, nullable=True)  # JSON list of check_ids at last alert
     whois_alert_sent  = Column(String, nullable=True)  # JSON list of day thresholds already emailed
+    public_status     = Column(Boolean, default=False)  # show on public /status page
+    uptime_alerted    = Column(Boolean, default=False)  # True while domain is currently down
     is_wordpress      = Column(Boolean, default=False)
     wp_version        = Column(String, nullable=True)
     wp_scan_at        = Column(DateTime, nullable=True)
@@ -71,6 +73,16 @@ class Setting(Base):
     __tablename__ = "settings"
     key   = Column(String, primary_key=True)
     value = Column(String, nullable=False)
+
+
+class UptimeCheck(Base):
+    __tablename__ = "uptime_checks"
+    id          = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    domain_id   = Column(String, ForeignKey("domains.id"), nullable=False)
+    checked_at  = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    is_up       = Column(Boolean, nullable=False)
+    response_ms = Column(Integer, nullable=True)
+    status_code = Column(Integer, nullable=True)
 
 
 class MonitoredEmail(Base):
@@ -123,6 +135,8 @@ async def init_db():
             "ALTER TABLE hosts ADD COLUMN wp_scan_at DATETIME",
             "ALTER TABLE hosts ADD COLUMN wp_scan_results TEXT",
             "ALTER TABLE domains ADD COLUMN whois_alert_sent TEXT",
+            "ALTER TABLE domains ADD COLUMN public_status BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE domains ADD COLUMN uptime_alerted BOOLEAN DEFAULT FALSE",
         ]:
             try:
                 await conn.execute(text(sql))

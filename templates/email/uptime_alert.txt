@@ -1,0 +1,21 @@
+TipOff — Uptime Alert
+{{ generated_at }}
+
+{{ newly_down|length }} domain{{ 's' if newly_down|length != 1 else '' }} went down:
+
+{% for hostname in newly_down %}
+  DOWN: {{ hostname }}
+{% endfor %}
+{% if newly_up %}
+
+Recovered:
+{% for hostname in newly_up %}
+  UP: {{ hostname }}
+{% endfor %}
+{% endif %}
+
+Log in to TipOff to view the full uptime history.
+
+--
+TipOff — IT Security Health Monitoring
+This alert was generated automatically.

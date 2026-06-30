@@ -41,6 +41,10 @@
   </div>
   {% if not readonly %}
   <div class="domain-actions">
+    <button hx-post="/domains/{{ item.domain.id }}/public-status"
+            hx-swap="outerHTML"
+            class="btn-sm {{ 'btn-active' if item.domain.public_status else 'btn-secondary' }}"
+            title="{{ 'Remove from' if item.domain.public_status else 'Add to' }} public status page">{{ 'Public ✓' if item.domain.public_status else 'Public' }}</button>
     <button hx-post="/domains/{{ item.domain.id }}/rescan"
             hx-target="#toast-container">Rescan</button>
     <button hx-delete="/domains/{{ item.domain.id }}"

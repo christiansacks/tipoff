@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:system-ui,-apple-system,Arial,sans-serif;color:#1f2937">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 16px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+
+  <tr>
+    <td style="background:#1a1d27;padding:24px 32px">
+      <span style="font-size:20px;font-weight:700;color:#f59e0b;letter-spacing:-0.02em">TipOff</span>
+      <p style="margin:4px 0 0 0;font-size:12px;color:#9ca3af">Uptime Alert &mdash; {{ generated_at }}</p>
+    </td>
+  </tr>
+
+  <tr>
+    <td style="background:#fef2f2;border-left:4px solid #dc2626;padding:14px 32px">
+      <span style="font-size:14px;font-weight:600;color:#dc2626">
+        {{ newly_down|length }} domain{{ 's' if newly_down|length != 1 else '' }} went down
+      </span>
+    </td>
+  </tr>
+
+  <tr>
+    <td style="padding:24px 32px 0 32px">
+      <p style="font-size:13px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 12px 0">Down</p>
+      {% for hostname in newly_down %}
+      <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #fecaca;border-radius:6px;margin-bottom:8px">
+        <tr>
+          <td style="padding:10px 16px">
+            <span style="display:inline-block;background:#fee2e2;color:#dc2626;font-size:10px;font-weight:700;padding:2px 6px;border-radius:3px;margin-right:8px">DOWN</span>
+            <span style="font-size:14px;font-weight:700">{{ hostname }}</span>
+          </td>
+        </tr>
+      </table>
+      {% endfor %}
+
+      {% if newly_up %}
+      <p style="font-size:13px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin:16px 0 12px 0">Recovered</p>
+      {% for hostname in newly_up %}
+      <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #bbf7d0;border-radius:6px;margin-bottom:8px">
+        <tr>
+          <td style="padding:10px 16px">
+            <span style="display:inline-block;background:#dcfce7;color:#16a34a;font-size:10px;font-weight:700;padding:2px 6px;border-radius:3px;margin-right:8px">UP</span>
+            <span style="font-size:14px;font-weight:700">{{ hostname }}</span>
+          </td>
+        </tr>
+      </table>
+      {% endfor %}
+      {% endif %}
+    </td>
+  </tr>
+
+  <tr>
+    <td style="padding:24px 32px;font-size:13px;color:#6b7280">
+      Log in to TipOff to view the full uptime history.
+    </td>
+  </tr>
+
+  <tr>
+    <td style="padding:16px 32px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center">
+      TipOff &mdash; IT Security Health Monitoring &mdash; This alert was generated automatically.
+    </td>
+  </tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>

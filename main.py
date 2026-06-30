@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.database import (
     init_db, seed_defaults, get_db, get_setting,
-    Domain, Host, ScanResult, Setting, MonitoredEmail,
+    Domain, Host, ScanResult, Setting, MonitoredEmail, UptimeCheck,
     hash_password, verify_password,
 )
 from scanner.runner import scan_domain
@@ -356,6 +356,82 @@ async def _check_and_send_alerts():
         await db.commit()
 
 
+async def _run_uptime_checks():
+    """Check every domain is reachable over HTTPS/HTTP. Runs every 5 minutes."""
+    import httpx
+    from datetime import timedelta
+    from db.database import SessionLocal
+    async with SessionLocal() as db:
+        domains_result = await db.execute(select(Domain))
+        domains = domains_result.scalars().all()
+        now = datetime.now(timezone.utc)
+        newly_down, newly_up = [], []
+
+        for domain in domains:
+            url = f"https://{domain.hostname}"
+            is_up, response_ms, status_code = False, None, None
+            try:
+                t0 = datetime.now(timezone.utc)
+                async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+                    r = await client.get(url)
+                response_ms  = int((datetime.now(timezone.utc) - t0).total_seconds() * 1000)
+                status_code  = r.status_code
+                is_up        = r.status_code < 500
+            except Exception:
+                # Try plain HTTP as fallback
+                try:
+                    url = f"http://{domain.hostname}"
+                    t0  = datetime.now(timezone.utc)
+                    async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+                        r = await client.get(url)
+                    response_ms = int((datetime.now(timezone.utc) - t0).total_seconds() * 1000)
+                    status_code = r.status_code
+                    is_up       = r.status_code < 500
+                except Exception:
+                    is_up = False
+
+            db.add(UptimeCheck(
+                domain_id   = domain.id,
+                checked_at  = now,
+                is_up       = is_up,
+                response_ms = response_ms,
+                status_code = status_code,
+            ))
+
+            # Track up→down and down→up transitions for alerting
+            if not is_up and not domain.uptime_alerted:
+                domain.uptime_alerted = True
+                newly_down.append(domain)
+            elif is_up and domain.uptime_alerted:
+                domain.uptime_alerted = False
+                newly_up.append(domain)
+
+        # Prune checks older than 90 days
+        cutoff = now - timedelta(days=90)
+        await db.execute(
+            delete(UptimeCheck).where(UptimeCheck.checked_at < cutoff)
+        )
+        await db.commit()
+
+    # Send alert if anything went down (Pro + email configured)
+    if newly_down and _email_alerts_enabled and _email_recipient and _email_cfg.get("host") and _license.has_feature("email_alerts"):
+        from mailer.sender import send_email
+        try:
+            ctx = {
+                "newly_down":   [d.hostname for d in newly_down],
+                "newly_up":     [d.hostname for d in newly_up],
+                "generated_at": datetime.now(timezone.utc).strftime("%d %b %Y at %H:%M UTC"),
+            }
+            html = templates.env.get_template("email/uptime_alert.html").render(ctx)
+            text = templates.env.get_template("email/uptime_alert.txt").render(ctx)
+            n = len(newly_down)
+            await send_email(_email_cfg, _email_recipient,
+                             f"TipOff — {n} domain{'s' if n != 1 else ''} went down",
+                             html, text)
+        except Exception as e:
+            print(f"Uptime alert email failed: {e}")
+
+
 async def _send_domain_expiry_alerts():
     """Daily check — email when domains hit 60/30/14/7 day expiry thresholds. Pro only."""
     if not _license.has_feature("email_alerts"):
@@ -554,6 +630,7 @@ async def lifespan(app: FastAPI):
     await _load_hibp_settings()
     await _load_wpscan_settings()
     scheduler.add_job(run_due_scans, "interval", hours=1, id="domain_scanner")
+    scheduler.add_job(_run_uptime_checks, "interval", minutes=5, id="uptime_checks")
     scheduler.add_job(_send_domain_expiry_alerts, "cron", hour=9, minute=0, id="expiry_alerts", misfire_grace_time=3600)
     scheduler.start()
     _apply_lan_schedule()
@@ -567,7 +644,7 @@ app = FastAPI(lifespan=lifespan)
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
-    if request.url.path.startswith("/static"):
+    if request.url.path.startswith("/static") or request.url.path == "/status":
         return await call_next(request)
 
     if _check_auth(request):
@@ -1664,3 +1741,92 @@ async def save_ce_note(question_id: str = Form(), note: str = Form(default="")):
         answers[question_id]["note"] = note.strip()
         await _save_ce_answers(answers)
     return HTMLResponse("")
+
+
+# ── Uptime / Status Page ───────────────────────────────────────────────────────
+
+@app.post("/domains/{domain_id}/public-status", response_class=HTMLResponse)
+async def toggle_public_status(domain_id: str, request: Request, db: AsyncSession = Depends(get_db)):
+    domain = await db.get(Domain, domain_id)
+    if not domain:
+        return HTMLResponse("")
+    domain.public_status = not domain.public_status
+    await db.commit()
+    enabled = domain.public_status
+    return HTMLResponse(
+        f'<button hx-post="/domains/{domain_id}/public-status" hx-swap="outerHTML" '
+        f'class="btn-sm {"btn-active" if enabled else "btn-secondary"}" '
+        f'title="{"Remove from" if enabled else "Add to"} public status page">'
+        f'{"Public ✓" if enabled else "Public"}</button>'
+    )
+
+
+@app.get("/status", response_class=HTMLResponse)
+async def status_page(request: Request, db: AsyncSession = Depends(get_db)):
+    from datetime import timedelta
+    from sqlalchemy import and_
+    now = datetime.now(timezone.utc)
+    days = 90
+
+    domains_result = await db.execute(select(Domain).where(Domain.public_status == True))
+    domains = domains_result.scalars().all()
+
+    items = []
+    for domain in domains:
+        cutoff = now - timedelta(days=days)
+        checks_result = await db.execute(
+            select(UptimeCheck).where(
+                UptimeCheck.domain_id == domain.id,
+                UptimeCheck.checked_at >= cutoff,
+            ).order_by(UptimeCheck.checked_at.asc())
+        )
+        checks = checks_result.scalars().all()
+
+        # Build daily buckets for the grid
+        daily = {}
+        for c in checks:
+            day_key = c.checked_at.date()
+            if day_key not in daily:
+                daily[day_key] = {"up": 0, "total": 0}
+            daily[day_key]["total"] += 1
+            if c.is_up:
+                daily[day_key]["up"] += 1
+
+        grid = []
+        for i in range(days):
+            day = (now - timedelta(days=days - 1 - i)).date()
+            if day in daily:
+                b = daily[day]
+                pct = b["up"] / b["total"] if b["total"] else 0
+                state = "up" if pct >= 0.8 else ("degraded" if pct >= 0.4 else "down")
+            else:
+                state = "nodata"
+            grid.append({"date": day.strftime("%d %b %Y"), "state": state})
+
+        total_checks = sum(d["total"] for d in daily.values())
+        up_checks    = sum(d["up"] for d in daily.values())
+        uptime_pct   = round(up_checks / total_checks * 100, 2) if total_checks else None
+
+        # Current status = most recent check
+        latest_result = await db.execute(
+            select(UptimeCheck).where(UptimeCheck.domain_id == domain.id)
+            .order_by(UptimeCheck.checked_at.desc())
+        )
+        latest = latest_result.scalars().first()
+        current_up = latest.is_up if latest else None
+
+        items.append({
+            "domain":      domain,
+            "grid":        grid,
+            "uptime_pct":  uptime_pct,
+            "current_up":  current_up,
+            "last_checked": latest.checked_at if latest else None,
+        })
+
+    all_up = all(i["current_up"] for i in items if i["current_up"] is not None)
+    return _tpl("status.html", {
+        "request":  request,
+        "items":    items,
+        "all_up":   all_up,
+        "readonly": True,
+    })

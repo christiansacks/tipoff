@@ -10,6 +10,10 @@ RUN apt-get update && apt-get install -y \
     libcairo2 \
     libffi-dev \
     fonts-liberation \
+    gcc \
+    python3-dev \
+    libjpeg-dev \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

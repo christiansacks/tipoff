@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.database import (
     init_db, seed_defaults, get_db, get_setting,
-    Domain, Host, ScanResult, Setting, MonitoredEmail, UptimeCheck, Monitor,
+    Domain, Host, ScanResult, Setting, MonitoredEmail, UptimeCheck, Monitor, Webhook,
     hash_password, verify_password,
 )
 from scanner.runner import scan_domain
@@ -356,6 +356,39 @@ async def _check_and_send_alerts():
         await db.commit()
 
 
+async def _fire_webhooks(event: str, context: dict):
+    """POST to all enabled webhooks subscribed to `event`."""
+    import httpx
+    from db.database import SessionLocal
+    async with SessionLocal() as db:
+        result = await db.execute(select(Webhook).where(Webhook.enabled == True))
+        webhooks = result.scalars().all()
+
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    for wh in webhooks:
+        subscribed = json.loads(wh.events or "[]")
+        if event not in subscribed:
+            continue
+        name = context.get("name", "")
+        status = context.get("status", event.replace("_", " "))
+        msg = f"TipOff • {name} — {status}"
+        payload = {
+            "content":   msg,   # Discord
+            "text":      msg,   # Slack / Mattermost
+            "message":   msg,   # generic
+            "event":     event,
+            "name":      name,
+            "status":    status,
+            "timestamp": now,
+            "details":   context,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                await client.post(wh.url, json=payload)
+        except Exception as e:
+            print(f"Webhook '{wh.name}' failed: {e}")
+
+
 def _check_expected_status(actual: int, expected: str | None) -> bool:
     """Return True if actual HTTP status matches the expected pattern."""
     if not expected or not expected.strip():
@@ -482,6 +515,12 @@ async def _run_uptime_checks():
         except Exception as e:
             print(f"Uptime alert email failed: {e}")
 
+    # Fire webhooks for each down/up transition (no Pro gate)
+    for _, label in newly_down:
+        await _fire_webhooks("monitor_down", {"name": label, "status": "went DOWN"})
+    for _, label in newly_up:
+        await _fire_webhooks("monitor_up", {"name": label, "status": "came back UP"})
+
 
 async def _send_domain_expiry_alerts():
     """Daily check — email when domains hit 60/30/14/7 day expiry thresholds. Pro only."""
@@ -545,6 +584,13 @@ async def _send_domain_expiry_alerts():
                 await send_email(_email_cfg, _email_recipient, subject, html, text)
             except Exception as e:
                 print(f"Expiry alert email failed: {e}")
+
+            for d in to_alert:
+                await _fire_webhooks("domain_expiry", {
+                    "name":     d["hostname"],
+                    "status":   f"expires in {d['days_left']} days",
+                    "days_left": d["days_left"],
+                })
 
         await db.commit()
 
@@ -2001,3 +2047,78 @@ async def toggle_monitor_public(monitor_id: str, db: AsyncSession = Depends(get_
     mon.public_status = not mon.public_status
     await db.commit()
     return HTMLResponse("", headers={"HX-Redirect": "/monitors"})
+
+
+# ── Webhooks ───────────────────────────────────────────────────────────────────
+
+@app.get("/webhooks", response_class=HTMLResponse)
+async def webhooks_page(request: Request, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Webhook).order_by(Webhook.added_at))
+    webhooks = result.scalars().all()
+    items = []
+    for wh in webhooks:
+        items.append({"webhook": wh, "events": json.loads(wh.events or "[]")})
+    return _tpl("webhooks.html", {"request": request, "items": items})
+
+
+@app.post("/webhooks", response_class=HTMLResponse)
+async def add_webhook(
+    request: Request,
+    name:   str  = Form(),
+    url:    str  = Form(),
+    events: list = Form(default=[]),
+    db: AsyncSession = Depends(get_db),
+):
+    wh = Webhook(name=name.strip(), url=url.strip(), events=json.dumps(events))
+    db.add(wh)
+    await db.commit()
+    return HTMLResponse("", headers={"HX-Redirect": "/webhooks"})
+
+
+@app.delete("/webhooks/{webhook_id}", response_class=HTMLResponse)
+async def delete_webhook(webhook_id: str, db: AsyncSession = Depends(get_db)):
+    wh = await db.get(Webhook, webhook_id)
+    if wh:
+        await db.delete(wh)
+        await db.commit()
+    return HTMLResponse("")
+
+
+@app.post("/webhooks/{webhook_id}/toggle", response_class=HTMLResponse)
+async def toggle_webhook(webhook_id: str, db: AsyncSession = Depends(get_db)):
+    wh = await db.get(Webhook, webhook_id)
+    if not wh:
+        return HTMLResponse("")
+    wh.enabled = not wh.enabled
+    await db.commit()
+    return HTMLResponse("", headers={"HX-Redirect": "/webhooks"})
+
+
+@app.post("/webhooks/{webhook_id}/test", response_class=HTMLResponse)
+async def test_webhook(webhook_id: str, db: AsyncSession = Depends(get_db)):
+    wh = await db.get(Webhook, webhook_id)
+    if not wh:
+        return HTMLResponse("Not found", status_code=404)
+    import httpx
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    msg = "TipOff • test — this is a test webhook from TipOff"
+    payload = {
+        "content":   msg,
+        "text":      msg,
+        "message":   msg,
+        "event":     "test",
+        "name":      "test",
+        "status":    "test",
+        "timestamp": now,
+        "details":   {},
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.post(wh.url, json=payload)
+        return HTMLResponse(
+            f'<span class="badge pass" id="test-result-{webhook_id}">Sent — {r.status_code}</span>'
+        )
+    except Exception as e:
+        return HTMLResponse(
+            f'<span class="badge fail" id="test-result-{webhook_id}">Failed: {e}</span>'
+        )

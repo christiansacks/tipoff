@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header">
+  <a href="/" class="back">← Dashboard</a>
+  <h1>Webhooks</h1>
+</div>
+
+<!-- Add webhook form -->
+<section class="card" style="margin-bottom:1.5rem">
+  <div class="card-header"><h2>Add Webhook</h2></div>
+  <form hx-post="/webhooks" hx-target="body" class="settings-form">
+    <div style="display:grid;grid-template-columns:1fr 2fr;gap:.75rem;align-items:end">
+      <div class="field" style="margin:0">
+        <label>Name</label>
+        <input type="text" name="name" placeholder="Discord alerts" required>
+      </div>
+      <div class="field" style="margin:0">
+        <label>URL</label>
+        <input type="url" name="url" placeholder="https://discord.com/api/webhooks/..." required>
+      </div>
+    </div>
+
+    <div class="field" style="margin-top:.75rem">
+      <label>Trigger on</label>
+      <div style="display:flex;gap:1.25rem;flex-wrap:wrap;margin-top:.4rem">
+        <label style="display:flex;align-items:center;gap:.4rem;font-size:13px;cursor:pointer">
+          <input type="checkbox" name="events" value="monitor_down" checked> Service goes down
+        </label>
+        <label style="display:flex;align-items:center;gap:.4rem;font-size:13px;cursor:pointer">
+          <input type="checkbox" name="events" value="monitor_up" checked> Service comes back up
+        </label>
+        <label style="display:flex;align-items:center;gap:.4rem;font-size:13px;cursor:pointer">
+          <input type="checkbox" name="events" value="domain_expiry"> Domain expiry warning
+        </label>
+      </div>
+    </div>
+
+    <div class="notice" style="margin-top:.75rem;font-size:12px">
+      Works with <strong>Discord</strong>, <strong>Slack</strong>, <strong>Mattermost</strong>, and any service accepting a JSON POST.
+      Discord uses the <code>content</code> field; Slack/Mattermost use <code>text</code>.
+    </div>
+
+    <button type="submit" style="margin-top:.75rem">Add webhook</button>
+  </form>
+</section>
+
+<!-- Webhook list -->
+{% if items %}
+<section class="card">
+  <div class="card-header">
+    <h2>Webhooks</h2>
+    <span class="badge">{{ items|length }}</span>
+  </div>
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <thead>
+      <tr style="border-bottom:1px solid var(--border);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em">
+        <th style="padding:.6rem .75rem;text-align:left;font-weight:600">Name</th>
+        <th style="padding:.6rem .75rem;text-align:left;font-weight:600">URL</th>
+        <th style="padding:.6rem .75rem;text-align:left;font-weight:600">Events</th>
+        <th style="padding:.6rem .75rem;text-align:right;font-weight:600">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr style="border-bottom:1px solid var(--border)" id="webhook-row-{{ item.webhook.id }}">
+        <td style="padding:.75rem;font-weight:600">
+          {{ item.webhook.name }}
+          {% if not item.webhook.enabled %}<span class="badge" style="margin-left:.4rem">Disabled</span>{% endif %}
+        </td>
+        <td style="padding:.75rem;font-size:12px;color:var(--muted);max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          {{ item.webhook.url }}
+        </td>
+        <td style="padding:.75rem">
+          <div style="display:flex;gap:.3rem;flex-wrap:wrap">
+            {% for ev in item.events %}
+            <span class="badge" style="font-size:10px">{{ ev.replace('_', ' ') }}</span>
+            {% endfor %}
+            {% if not item.events %}<span class="muted" style="font-size:12px">none</span>{% endif %}
+          </div>
+        </td>
+        <td style="padding:.75rem;text-align:right">
+          <div style="display:flex;gap:.4rem;justify-content:flex-end;align-items:center">
+            <span id="test-result-{{ item.webhook.id }}"></span>
+            <button hx-post="/webhooks/{{ item.webhook.id }}/test"
+                    hx-target="#test-result-{{ item.webhook.id }}"
+                    hx-swap="outerHTML"
+                    class="btn-sm">Test</button>
+            <button hx-post="/webhooks/{{ item.webhook.id }}/toggle"
+                    hx-target="body"
+                    class="btn-sm">{{ 'Disable' if item.webhook.enabled else 'Enable' }}</button>
+            <button hx-delete="/webhooks/{{ item.webhook.id }}"
+                    hx-target="#webhook-row-{{ item.webhook.id }}"
+                    hx-swap="outerHTML"
+                    hx-confirm="Remove {{ item.webhook.name }}?"
+                    class="btn-sm">Remove</button>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% else %}
+<div class="notice" style="text-align:center;padding:2rem">
+  No webhooks yet. Add one above to get notified in Discord, Slack, or any HTTP endpoint.
+</div>
+{% endif %}
+
+{% endblock %}

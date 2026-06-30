@@ -100,6 +100,16 @@ class UptimeCheck(Base):
     status_code = Column(Integer, nullable=True)
 
 
+class Webhook(Base):
+    __tablename__ = "webhooks"
+    id       = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name     = Column(String, nullable=False)
+    url      = Column(String, nullable=False)
+    events   = Column(String, nullable=False, default="[]")  # JSON list of event names
+    enabled  = Column(Boolean, default=True)
+    added_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class MonitoredEmail(Base):
     __tablename__ = "monitored_emails"
     id            = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))

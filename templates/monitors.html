@@ -12,7 +12,7 @@
     <h2>Add Monitor</h2>
   </div>
   <form hx-post="/monitors" hx-target="body" class="settings-form">
-    <div style="display:grid;grid-template-columns:2fr 2fr 1fr 1fr;gap:.75rem;align-items:end;flex-wrap:wrap">
+    <div style="display:grid;grid-template-columns:2fr 2fr 120px 140px;gap:.75rem;align-items:end">
       <div class="field" style="margin:0">
         <label>Name</label>
         <input type="text" name="name" placeholder="BBS SSH" required>
@@ -23,7 +23,8 @@
       </div>
       <div class="field" style="margin:0">
         <label>Port</label>
-        <input type="number" name="port" placeholder="22" min="1" max="65535" required style="width:100%">
+        <input type="text" inputmode="numeric" pattern="[0-9]*" name="port" placeholder="22" required
+               style="width:100%;-moz-appearance:textfield">
       </div>
       <div class="field" style="margin:0">
         <label>Protocol</label>

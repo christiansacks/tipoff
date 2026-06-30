@@ -1074,3 +1074,7 @@ button:hover { opacity: 0.85; }
 .ce-strip-status { color: var(--muted); flex: 1; }
 .ce-strip-arrow  { color: var(--accent); font-size: 15px; }
 .pass-text { color: #16a34a; }
+
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=number] { -moz-appearance: textfield; }

@@ -159,6 +159,33 @@ async def init_db():
             except Exception:
                 pass
 
+        # Rebuild uptime_checks to make domain_id nullable (SQLite can't ALTER COLUMN)
+        try:
+            row = await conn.execute(text(
+                "SELECT 1 FROM pragma_table_info('uptime_checks') "
+                "WHERE name='domain_id' AND \"notnull\"=1"
+            ))
+            if row.fetchone():
+                await conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS uptime_checks_new (
+                        id          TEXT PRIMARY KEY,
+                        domain_id   TEXT REFERENCES domains(id),
+                        monitor_id  TEXT REFERENCES monitors(id),
+                        checked_at  DATETIME,
+                        is_up       BOOLEAN NOT NULL,
+                        response_ms INTEGER,
+                        status_code INTEGER
+                    )
+                """))
+                await conn.execute(text(
+                    "INSERT INTO uptime_checks_new SELECT id, domain_id, monitor_id, "
+                    "checked_at, is_up, response_ms, status_code FROM uptime_checks"
+                ))
+                await conn.execute(text("DROP TABLE uptime_checks"))
+                await conn.execute(text("ALTER TABLE uptime_checks_new RENAME TO uptime_checks"))
+        except Exception as e:
+            print(f"uptime_checks migration warning: {e}")
+
 
 async def seed_defaults():
     """Set admin/admin if no credentials exist in DB yet."""

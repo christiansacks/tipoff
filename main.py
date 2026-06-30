@@ -387,6 +387,12 @@ async def _fire_webhooks(event: str, context: dict):
                             "Tags":     "bell" if "down" not in event else "rotating_light",
                         },
                     )
+                elif wh.webhook_type == "matrix":
+                    txn_url = wh.url.replace("{txn_id}", str(uuid.uuid4()))
+                    await client.put(txn_url, json={
+                        "msgtype": "m.text",
+                        "body":    msg,
+                    })
                 else:
                     await client.post(wh.url, json={
                         "content":   msg,
@@ -2124,6 +2130,12 @@ async def test_webhook(webhook_id: str, db: AsyncSession = Depends(get_db)):
                     content=body.encode(),
                     headers={"Title": "TipOff", "Priority": "3", "Tags": "bell"},
                 )
+            elif wh.webhook_type == "matrix":
+                txn_url = wh.url.replace("{txn_id}", str(uuid.uuid4()))
+                r = await client.put(txn_url, json={
+                    "msgtype": "m.text",
+                    "body":    msg,
+                })
             else:
                 r = await client.post(wh.url, json={
                     "content":   msg,

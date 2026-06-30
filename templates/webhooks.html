@@ -25,6 +25,7 @@
                 style="background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:.5rem .75rem;font-size:14px;width:100%">
           <option value="json">Generic / Discord / Slack</option>
           <option value="ntfy">ntfy</option>
+          <option value="matrix">Matrix</option>
         </select>
       </div>
     </div>
@@ -44,10 +45,19 @@
       </div>
     </div>
 
-    <div class="notice" style="margin-top:.75rem;font-size:12px">
-      Works with <strong>Discord</strong>, <strong>Slack</strong>, <strong>Mattermost</strong>, and any service accepting a JSON POST.
-      Discord uses the <code>content</code> field; Slack/Mattermost use <code>text</code>.
+    <div class="notice" style="margin-top:.75rem;font-size:12px" id="webhook-hint">
+      <span id="hint-json"><strong>Discord</strong>, <strong>Slack</strong>, <strong>Mattermost</strong> — paste the webhook URL as-is.</span>
+      <span id="hint-ntfy" style="display:none"><strong>ntfy</strong> — use your topic URL, e.g. <code>https://ntfy.sh/mytopic</code></span>
+      <span id="hint-matrix" style="display:none"><strong>Matrix</strong> — use the client API send URL with <code>{txn_id}</code> placeholder:<br>
+        <code>https://matrix.example.com/_matrix/client/r0/rooms/!ROOMID:example.com/send/m.room.message/{txn_id}?access_token=TOKEN</code></span>
     </div>
+    <script>
+    document.querySelector('[name="webhook_type"]').addEventListener('change', function() {
+      document.getElementById('hint-json').style.display   = this.value === 'json'   ? '' : 'none';
+      document.getElementById('hint-ntfy').style.display   = this.value === 'ntfy'   ? '' : 'none';
+      document.getElementById('hint-matrix').style.display = this.value === 'matrix' ? '' : 'none';
+    });
+    </script>
 
     <button type="submit" style="margin-top:.75rem">Add webhook</button>
   </form>
@@ -81,7 +91,7 @@
           {{ item.webhook.url }}
         </td>
         <td style="padding:.75rem">
-          <span class="badge">{{ 'ntfy' if item.webhook.webhook_type == 'ntfy' else 'JSON' }}</span>
+          <span class="badge">{{ {'ntfy': 'ntfy', 'matrix': 'Matrix'}.get(item.webhook.webhook_type, 'JSON') }}</span>
         </td>
         <td style="padding:.75rem">
           <div style="display:flex;gap:.3rem;flex-wrap:wrap">

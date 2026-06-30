@@ -10,5 +10,4 @@ services:
 
 volumes:
   tipoff_data:
-    external: true
-    name: cyberready_tipoff_data
+    name: tipoff_data

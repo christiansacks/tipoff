@@ -15,6 +15,28 @@ _TIMEOUT   = httpx.Timeout(10.0)
 _SSL_CTX   = False   # skip SSL verification for self-signed certs on LAN
 
 
+async def run_for_domain(hostname: str, api_key: str | None = None) -> dict:
+    """Entry point for domain-based scanning — tries HTTPS then HTTP."""
+    detection = await _check_url(f"https://{hostname}")
+    if not detection["detected"]:
+        detection = await _check_url(f"http://{hostname}")
+
+    result = {
+        "scanned_at":    datetime.now(timezone.utc).isoformat(),
+        **detection,
+        "vulnerabilities": [],
+        "api_used":        False,
+        "vuln_error":      None,
+    }
+    if detection["detected"] and api_key:
+        try:
+            result["vulnerabilities"] = await _vuln_lookup(detection, api_key)
+            result["api_used"] = True
+        except Exception as exc:
+            result["vuln_error"] = str(exc)
+    return result
+
+
 async def run(ip: str, open_ports: list, api_key: str | None = None) -> dict:
     """Main entry point — returns a result dict stored as wp_scan_results on Host."""
     detection = await _detect(ip, open_ports)

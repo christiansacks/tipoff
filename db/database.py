@@ -22,6 +22,10 @@ class Domain(Base):
     next_scan_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     last_scan_at      = Column(DateTime, nullable=True)
     alerted_fail_ids  = Column(String, nullable=True)  # JSON list of check_ids at last alert
+    is_wordpress      = Column(Boolean, default=False)
+    wp_version        = Column(String, nullable=True)
+    wp_scan_at        = Column(DateTime, nullable=True)
+    wp_scan_results   = Column(JSON, nullable=True)
 
 
 class Host(Base):
@@ -108,6 +112,10 @@ async def init_db():
             "ALTER TABLE hosts ADD COLUMN last_alert_at DATETIME",
             "ALTER TABLE hosts ADD COLUMN first_seen DATETIME",
             "ALTER TABLE domains ADD COLUMN alerted_fail_ids TEXT",
+            "ALTER TABLE domains ADD COLUMN is_wordpress BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE domains ADD COLUMN wp_version TEXT",
+            "ALTER TABLE domains ADD COLUMN wp_scan_at DATETIME",
+            "ALTER TABLE domains ADD COLUMN wp_scan_results TEXT",
             "ALTER TABLE hosts ADD COLUMN is_wordpress BOOLEAN DEFAULT FALSE",
             "ALTER TABLE hosts ADD COLUMN wp_version TEXT",
             "ALTER TABLE hosts ADD COLUMN wp_url TEXT",

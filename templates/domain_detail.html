@@ -9,6 +9,10 @@
       {{ score }}/60
     </span>
   {% endif %}
+  {% if domain.is_wordpress %}
+    <span class="badge wp-badge" title="WordPress detected">WP</span>
+    {% if domain.wp_version %}<span class="badge">v{{ domain.wp_version }}</span>{% endif %}
+  {% endif %}
 </div>
 
 {% if not fails and not warns and not passes %}
@@ -41,5 +45,62 @@
   {% endfor %}
 </section>
 {% endif %}
+
+<!-- ── WordPress ─────────────────────────────────────────────────── -->
+<section class="card" id="wp-section">
+  <div class="card-header" style="margin-bottom:.75rem;display:flex;align-items:center;gap:.75rem">
+    <h2 class="section-title" style="margin-bottom:0">WordPress</h2>
+    {% if domain.is_wordpress %}
+      <span class="badge wp-badge">WP detected</span>
+      {% if domain.wp_version %}<span class="badge">v{{ domain.wp_version }}</span>{% endif %}
+    {% endif %}
+    {% if not readonly %}
+    <button hx-post="/domains/{{ domain.id }}/wpscan"
+            hx-target="main"
+            hx-swap="innerHTML"
+            class="btn-rescan" style="margin-left:auto">
+      <span class="rescan-idle">↺ Scan</span>
+      <span class="rescan-busy htmx-indicator">⟳ Scanning…</span>
+    </button>
+    {% endif %}
+  </div>
+
+  {% if domain.wp_scan_at %}
+    {% set r = domain.wp_scan_results %}
+    {% if not r.detected %}
+      <p class="empty-state">No WordPress installation detected at {{ domain.hostname }}.</p>
+    {% else %}
+      <div class="wp-meta">
+        {% if r.url %}<div class="info-row"><span class="info-label">URL</span><span class="info-value"><a href="{{ r.url }}" target="_blank" rel="noopener">{{ r.url }}</a></span></div>{% endif %}
+        {% if r.plugins %}<div class="info-row"><span class="info-label">Plugins</span><span class="info-value">{{ r.plugins | join(", ") }}</span></div>{% endif %}
+        {% if r.themes %}<div class="info-row"><span class="info-label">Themes</span><span class="info-value">{{ r.themes | join(", ") }}</span></div>{% endif %}
+      </div>
+
+      {% if r.vulnerabilities %}
+        <h3 class="wp-vuln-heading">Vulnerabilities found</h3>
+        {% for v in r.vulnerabilities %}
+        <div class="wp-vuln {{ 'wp-vuln-critical' if v.cvss and v.cvss >= 9 else 'wp-vuln-high' if v.cvss and v.cvss >= 7 else 'wp-vuln-medium' }}">
+          <div class="wp-vuln-header">
+            <span class="wp-vuln-component">{{ v.component }}</span>
+            {% if v.cvss %}<span class="risk-badge risk-{{ 'critical' if v.cvss >= 9 else 'high' if v.cvss >= 7 else 'medium' }}">CVSS {{ v.cvss }}</span>{% endif %}
+            {% if v.cve %}<span class="badge">CVE-{{ v.cve }}</span>{% endif %}
+          </div>
+          <p class="wp-vuln-title">{{ v.title }}</p>
+          {% if v.fixed_in %}<p class="wp-vuln-fix">Fixed in v{{ v.fixed_in }}</p>{% endif %}
+        </div>
+        {% endfor %}
+      {% elif r.api_used %}
+        <p class="empty-state" style="color:var(--green)">✓ No known vulnerabilities found for detected components.</p>
+      {% else %}
+        <div class="wp-pro-nudge">
+          <strong>Pro:</strong> Add a WPScan API key in Settings to check for known CVEs in this WordPress install, its plugins and themes.
+        </div>
+      {% endif %}
+    {% endif %}
+    <p class="muted-text" style="font-size:11px;margin-top:.75rem">Last scanned {{ domain.wp_scan_at.strftime("%d %b %Y %H:%M") }}</p>
+  {% else %}
+    <p class="empty-state">Click <strong>↺ Scan</strong> to check for WordPress on this domain.</p>
+  {% endif %}
+</section>
 
 {% endblock %}

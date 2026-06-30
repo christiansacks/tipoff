@@ -659,12 +659,12 @@ async def domain_detail(domain_id: str, request: Request, db: AsyncSession = Dep
     score  = _score_from_rows(results)
 
     return _tpl("domain_detail.html", {
-        "request": request,
-        "domain": domain,
-        "fails": fails,
-        "warns": warns,
-        "passes": passes,
-        "score": score,
+        "request":  request,
+        "domain":   domain,
+        "fails":    fails,
+        "warns":    warns,
+        "passes":   passes,
+        "score":    score,
     })
 
 
@@ -696,6 +696,41 @@ async def delete_domain(domain_id: str, db: AsyncSession = Depends(get_db)):
     await db.execute(delete(Domain).where(Domain.id == domain_id))
     await db.commit()
     return HTMLResponse("")
+
+
+@app.post("/domains/{domain_id}/wpscan", response_class=HTMLResponse)
+async def wpscan_domain(
+    domain_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    from scanner.checks import wpscan as _wpscan
+    domain = await db.get(Domain, domain_id)
+    if not domain:
+        return HTMLResponse("Not found", status_code=404)
+
+    api_key = _wpscan_api_key if _license.has_feature("pdf") else None
+    result  = await _wpscan.run_for_domain(domain.hostname, api_key)
+
+    domain.is_wordpress   = result["detected"]
+    domain.wp_version     = result.get("version")
+    domain.wp_scan_at     = datetime.now(timezone.utc)
+    domain.wp_scan_results = result
+    await db.commit()
+    await db.refresh(domain)
+
+    scans = await db.execute(
+        select(ScanResult).where(ScanResult.domain_id == domain_id)
+    )
+    results = scans.scalars().all()
+    return _tpl("domain_detail.html", {
+        "request": request,
+        "domain":  domain,
+        "fails":   [r for r in results if r.status == "fail"],
+        "warns":   [r for r in results if r.status == "warn"],
+        "passes":  [r for r in results if r.status == "pass"],
+        "score":   _score_from_rows(results),
+    })
 
 
 @app.post("/discover", response_class=HTMLResponse)

@@ -356,6 +356,72 @@ async def _check_and_send_alerts():
         await db.commit()
 
 
+async def _send_domain_expiry_alerts():
+    """Daily check — email when domains hit 60/30/14/7 day expiry thresholds. Pro only."""
+    if not _license.has_feature("email_alerts"):
+        return
+    if not _email_alerts_enabled or not _email_recipient or not _email_cfg.get("host"):
+        return
+    from db.database import SessionLocal
+    from mailer.sender import send_email
+
+    thresholds = [60, 30, 14, 7]
+
+    async with SessionLocal() as db:
+        domains_result = await db.execute(select(Domain))
+        to_alert = []
+
+        for domain in domains_result.scalars().all():
+            # Get days_left from most recent WHOIS scan result
+            scan_result = await db.execute(
+                select(ScanResult).where(
+                    ScanResult.domain_id == domain.id,
+                    ScanResult.check_id.in_(["domain_expiring_soon", "domain_renewal_due", "domain_expired", "domain_expiry_ok"]),
+                ).order_by(ScanResult.scanned_at.desc())
+            )
+            row = scan_result.scalars().first()
+            if not row or not row.raw or "days_left" not in row.raw:
+                continue
+
+            days_left = row.raw["days_left"]
+            expiry    = row.raw.get("expiry", "unknown")
+
+            # Which thresholds have already been notified?
+            try:
+                already_sent = set(json.loads(domain.whois_alert_sent or "[]"))
+            except Exception:
+                already_sent = set()
+
+            # If domain was renewed (days_left climbed back above 60), reset
+            if days_left > 60 and already_sent:
+                domain.whois_alert_sent = "[]"
+                continue
+
+            # Find the lowest threshold we've crossed that hasn't been sent yet
+            for t in thresholds:
+                if days_left <= t and t not in already_sent:
+                    to_alert.append({"hostname": domain.hostname, "days_left": days_left, "expiry": expiry})
+                    already_sent.add(t)
+                    domain.whois_alert_sent = json.dumps(sorted(already_sent))
+                    break  # one email per domain per run
+
+        if to_alert:
+            try:
+                ctx = {
+                    "expiring":     to_alert,
+                    "generated_at": datetime.now(timezone.utc).strftime("%d %b %Y at %H:%M UTC"),
+                }
+                html = templates.env.get_template("email/expiry_alert.html").render(ctx)
+                text = templates.env.get_template("email/expiry_alert.txt").render(ctx)
+                n       = len(to_alert)
+                subject = f"TipOff — {n} domain{'s' if n != 1 else ''} expiring soon"
+                await send_email(_email_cfg, _email_recipient, subject, html, text)
+            except Exception as e:
+                print(f"Expiry alert email failed: {e}")
+
+        await db.commit()
+
+
 async def _send_weekly_digest():
     if not _email_recipient or not _email_cfg.get("host"):
         return
@@ -432,6 +498,40 @@ async def run_due_scans():
                 domain.last_scan_at = now
                 domain.next_scan_at = now + timedelta(hours=24)
                 await db.commit()
+
+                # Auto-rescan WordPress vulnerabilities if detected and API key is set
+                if domain.is_wordpress and _wpscan_api_key and _license.has_feature("pdf"):
+                    try:
+                        from scanner.checks import wpscan as _wpscan
+                        wp_result = await _wpscan.run_for_domain(domain.hostname, _wpscan_api_key)
+                        async with SessionLocal() as wp_db:
+                            wp_domain = await wp_db.get(Domain, domain.id)
+                            if wp_domain:
+                                wp_domain.wp_scan_at      = now
+                                wp_domain.wp_scan_results = wp_result
+                                await wp_db.execute(delete(ScanResult).where(
+                                    ScanResult.domain_id == domain.id,
+                                    ScanResult.check_id  == "wordpress_vulns",
+                                ))
+                                vulns = wp_result.get("vulnerabilities", []) if wp_result.get("api_used") else []
+                                if vulns:
+                                    has_crit = any(v.get("cvss") and v["cvss"] >= 9 for v in vulns)
+                                    has_high = any(v.get("cvss") and v["cvss"] >= 7 for v in vulns)
+                                    impact   = 12 if has_crit else (8 if has_high else 4)
+                                    n_vulns  = len(vulns)
+                                    wp_db.add(ScanResult(
+                                        domain_id    = domain.id,
+                                        check_id     = "wordpress_vulns",
+                                        status       = "fail",
+                                        title        = f"WordPress: {n_vulns} known vulnerabilit{'y' if n_vulns == 1 else 'ies'}",
+                                        detail       = f"WPScan found {n_vulns} unpatched vulnerabilit{'y' if n_vulns == 1 else 'ies'} in WordPress core, plugins or themes.",
+                                        remediation  = "Update all plugins, themes, and WordPress core to their latest versions.",
+                                        score_impact = impact,
+                                        raw          = {"vulnerabilities": vulns},
+                                    ))
+                                await wp_db.commit()
+                    except Exception as e:
+                        print(f"WPScan auto-rescan failed for {domain.hostname}: {e}")
             except Exception as e:
                 print(f"Scan failed for {domain.hostname}: {e}")
     await _check_and_send_alerts()
@@ -454,6 +554,7 @@ async def lifespan(app: FastAPI):
     await _load_hibp_settings()
     await _load_wpscan_settings()
     scheduler.add_job(run_due_scans, "interval", hours=1, id="domain_scanner")
+    scheduler.add_job(_send_domain_expiry_alerts, "cron", hour=9, minute=0, id="expiry_alerts", misfire_grace_time=3600)
     scheduler.start()
     _apply_lan_schedule()
     _apply_digest_schedule()

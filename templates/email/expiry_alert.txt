@@ -1,0 +1,14 @@
+TipOff — Domain Expiry Alert
+{{ generated_at }}
+
+{{ expiring|length }} domain{{ 's' if expiring|length != 1 else '' }} need{{ '' if expiring|length != 1 else 's' }} renewing soon.
+
+{% for item in expiring %}
+{{ item.hostname }}
+  Expires: {{ item.expiry }} ({{ item.days_left }} day{{ 's' if item.days_left != 1 else '' }} remaining)
+  Action: Log in to your domain registrar and renew immediately.
+
+{% endfor %}
+--
+TipOff — IT Security Health Monitoring
+This alert was generated automatically.

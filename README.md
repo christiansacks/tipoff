@@ -155,6 +155,19 @@ Generate a read-only link under **Settings → Shareable Link**. Share it with a
 
 ---
 
+## Updating
+
+To update to the latest version:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+This pulls the latest image from Docker Hub and recreates the container. Your data volume is unaffected — database migrations run automatically on startup.
+
+---
+
 ## Pro Licence
 
 TipOff Free includes all scanning and monitoring features.

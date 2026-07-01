@@ -307,6 +307,29 @@ def _apply_digest_schedule():
     )
 
 
+async def _send_port_change_alert(changes: list[dict]):
+    if not _email_alerts_enabled or not _email_recipient or not _email_cfg.get("host"):
+        return
+    from mailer.sender import send_email
+    lines = []
+    for c in changes:
+        if c["appeared"]:
+            lines.append(f"{c['host']} ({c['ip']}) — new port(s) open: {', '.join(str(p) for p in c['appeared'])}")
+        if c["disappeared"]:
+            lines.append(f"{c['host']} ({c['ip']}) — port(s) closed: {', '.join(str(p) for p in c['disappeared'])}")
+    body = "\n".join(lines)
+    html = "<br>".join(lines)
+    try:
+        await send_email(
+            _email_cfg, _email_recipient,
+            f"TipOff — port changes detected on {len(changes)} host(s)",
+            f"<p>{html}</p>",
+            body,
+        )
+    except Exception as e:
+        print(f"Port change alert email failed: {e}")
+
+
 async def _check_and_send_alerts():
     if not _email_alerts_enabled or not _email_recipient or not _email_cfg.get("host"):
         return
@@ -1700,11 +1723,24 @@ async def _run_discovery_job(job_id: str, cidr: str):
                 seen[h["ip"]] = h
         hosts = list(seen.values())
         job["stage"] = "Saving results…"
+        port_changes: list[dict] = []
         async with SessionLocal() as db:
             for h in hosts:
                 existing = await db.execute(select(Host).where(Host.ip == h["ip"]))
                 host_row = existing.scalar_one_or_none()
                 if host_row:
+                    old_ports = {p["port"] for p in (host_row.open_ports or [])}
+                    new_ports = {p["port"] for p in h.get("open_ports", [])}
+                    appeared   = new_ports - old_ports
+                    disappeared = old_ports - new_ports
+                    if appeared or disappeared:
+                        label = host_row.hostname or host_row.ip
+                        port_changes.append({
+                            "host":        label,
+                            "ip":          host_row.ip,
+                            "appeared":    sorted(appeared),
+                            "disappeared": sorted(disappeared),
+                        })
                     host_row.hostname   = h.get("hostname", "")
                     host_row.mac        = h.get("mac", "")
                     host_row.vendor     = h.get("vendor", "")
@@ -1723,6 +1759,19 @@ async def _run_discovery_job(job_id: str, cidr: str):
                         flagged=h.get("flagged", False),
                     ))
             await db.commit()
+        for change in port_changes:
+            if change["appeared"]:
+                await _fire_webhooks("port_open", {
+                    "name":   change["host"],
+                    "status": f"new port(s) open: {', '.join(str(p) for p in change['appeared'])}",
+                })
+            if change["disappeared"]:
+                await _fire_webhooks("port_closed", {
+                    "name":   change["host"],
+                    "status": f"port(s) closed: {', '.join(str(p) for p in change['disappeared'])}",
+                })
+        if port_changes:
+            await _send_port_change_alert(port_changes)
         job["status"] = "done"
         await _check_and_send_alerts()
     except Exception as e:

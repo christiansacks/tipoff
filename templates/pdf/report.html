@@ -564,7 +564,14 @@
 </div>
 
 {% for site in wp_sites %}
-{% set vulns = site.scan_results.get('vulnerabilities', []) if site.scan_results else [] %}
+{% set r = site.scan_results %}
+{% set vulns = r.get('vulnerabilities', []) if r else [] %}
+{% set api_used = r.get('api_used', false) if r else false %}
+{% set vuln_components = vulns | map(attribute='component') | list %}
+{% set plugins = r.get('plugins', []) if r else [] %}
+{% set themes  = r.get('themes',  []) if r else [] %}
+{% set plugin_versions = r.get('plugin_versions', {}) if r else {} %}
+{% set theme_versions  = r.get('theme_versions',  {}) if r else {} %}
 <div class="wp-site-card">
   <div class="wp-site-header">
     <span class="wp-site-name">{{ site.label }}</span>
@@ -574,24 +581,72 @@
     </span>
     {% if vulns %}
       <span class="badge badge-fail">{{ vulns|length }} vuln{{ 's' if vulns|length != 1 else '' }}</span>
-    {% elif site.scan_results and site.scan_results.get('api_used') %}
+    {% elif api_used %}
       <span class="badge badge-pass">No known vulnerabilities</span>
     {% else %}
       <span class="badge" style="background:#f3f4f6;color:#6b7280">No API scan</span>
     {% endif %}
   </div>
+
+  {% if vulns %}
   {% for v in vulns %}
   <div class="wp-vuln-row">
     <div class="wp-vuln-title">{{ v.title }}</div>
     <div class="wp-vuln-meta">
-      Component: {{ v.component }}
+      {{ v.component }}
       {% if v.cve %} · CVE-{{ v.cve }}{% endif %}
       {% if v.cvss %} · CVSS {{ v.cvss }}{% endif %}
       {% if v.fixed_in %} · Fixed in {{ v.fixed_in }}{% endif %}
     </div>
   </div>
   {% endfor %}
-  {% if not vulns and not (site.scan_results and site.scan_results.get('api_used')) %}
+  {% endif %}
+
+  {% if api_used %}
+  <table style="width:100%;border-collapse:collapse;font-size:9px;border-top:1px solid #f3f4f6">
+    <thead>
+      <tr style="background:#f9fafb">
+        <th style="padding:4px 8px;text-align:left;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Component</th>
+        <th style="padding:4px 8px;text-align:left;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Type</th>
+        <th style="padding:4px 8px;text-align:left;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Version</th>
+        <th style="padding:4px 8px;text-align:center;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if site.version %}
+      {% set is_vuln = 'WordPress Core' in vuln_components %}
+      <tr style="border-top:1px solid #f3f4f6{% if is_vuln %};background:#fff7f7{% endif %}">
+        <td style="padding:4px 8px;font-weight:600">WordPress Core</td>
+        <td style="padding:4px 8px;color:#6b7280">core</td>
+        <td style="padding:4px 8px;font-family:monospace">{{ site.version }}</td>
+        <td style="padding:4px 8px;text-align:center;font-weight:700;color:{{ '#dc2626' if is_vuln else '#16a34a' }}">{{ '✗' if is_vuln else '✓' }}</td>
+      </tr>
+      {% endif %}
+      {% for slug in plugins %}
+      {% set comp = "Plugin: " + slug %}
+      {% set is_vuln = comp in vuln_components %}
+      {% set ver = plugin_versions[slug] if slug in plugin_versions else none %}
+      <tr style="border-top:1px solid #f3f4f6{% if is_vuln %};background:#fff7f7{% endif %}">
+        <td style="padding:4px 8px">{{ slug }}</td>
+        <td style="padding:4px 8px;color:#6b7280">plugin</td>
+        <td style="padding:4px 8px;font-family:monospace">{{ ver or '—' }}</td>
+        <td style="padding:4px 8px;text-align:center;font-weight:700;color:{{ '#dc2626' if is_vuln else '#16a34a' }}">{{ '✗' if is_vuln else '✓' }}</td>
+      </tr>
+      {% endfor %}
+      {% for slug in themes %}
+      {% set comp = "Theme: " + slug %}
+      {% set is_vuln = comp in vuln_components %}
+      {% set ver = theme_versions[slug] if slug in theme_versions else none %}
+      <tr style="border-top:1px solid #f3f4f6{% if is_vuln %};background:#fff7f7{% endif %}">
+        <td style="padding:4px 8px">{{ slug }}</td>
+        <td style="padding:4px 8px;color:#6b7280">theme</td>
+        <td style="padding:4px 8px;font-family:monospace">{{ ver or '—' }}</td>
+        <td style="padding:4px 8px;text-align:center;font-weight:700;color:{{ '#dc2626' if is_vuln else '#16a34a' }}">{{ '✗' if is_vuln else '✓' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% elif not vulns %}
   <div class="wp-vuln-row" style="color:#6b7280">Add a WPScan API key in Settings to enable vulnerability scanning.</div>
   {% endif %}
 </div>

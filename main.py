@@ -2145,8 +2145,15 @@ async def test_webhook(webhook_id: str, db: AsyncSession = Depends(get_db)):
                     "status":    "test",
                     "timestamp": now,
                 })
+        colour = "pass" if r.status_code < 300 else "fail"
+        try:
+            detail = r.json()
+        except Exception:
+            detail = r.text[:200]
         return HTMLResponse(
-            f'<span class="badge pass" id="test-result-{webhook_id}">Sent — {r.status_code}</span>'
+            f'<span class="badge {colour}" id="test-result-{webhook_id}" '
+            f'title="{detail}">{r.status_code}</span> '
+            f'<code style="font-size:11px;color:var(--muted)">{detail}</code>'
         )
     except Exception as e:
         return HTMLResponse(

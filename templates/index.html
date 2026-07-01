@@ -35,7 +35,10 @@
   <div class="card-summary" onclick="toggleSection('domains')">
     <div class="summary-left">
       <h2>External Checks</h2>
-      <div class="summary-chips">
+      <div class="summary-chips" id="domain-summary-chips"
+           hx-get="/partials/domain-summary"
+           hx-trigger="domainAdded from:body, domainDeleted from:body, every 30s"
+           hx-swap="innerHTML">
         {% if domain_total == 0 %}
           <span class="summary-chip muted-chip">No domains added</span>
         {% else %}

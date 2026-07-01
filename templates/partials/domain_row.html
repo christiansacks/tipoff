@@ -50,7 +50,8 @@
     <button hx-delete="/domains/{{ item.domain.id }}"
             hx-target="closest .domain-row"
             hx-swap="outerHTML"
-            hx-confirm="Remove {{ item.domain.hostname }}?">Remove</button>
+            hx-confirm="Remove {{ item.domain.hostname }}?"
+            hx-on::after-request="htmx.trigger(document.body, 'domainDeleted')">Remove</button>
   </div>
   {% endif %}
 </div>

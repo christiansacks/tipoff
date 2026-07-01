@@ -970,6 +970,39 @@ async def partials_domains(request: Request, db: AsyncSession = Depends(get_db))
     })
 
 
+@app.get("/partials/domain-summary", response_class=HTMLResponse)
+async def partials_domain_summary(request: Request, db: AsyncSession = Depends(get_db)):
+    domains_result = await db.execute(select(Domain))
+    domains = domains_result.scalars().all()
+    domain_data = []
+    for d in domains:
+        scans = await db.execute(select(ScanResult).where(ScanResult.domain_id == d.id))
+        results = scans.scalars().all()
+        domain_data.append({
+            "score": _score_from_rows(results),
+            "fails": sum(1 for r in results if r.status == "fail"),
+            "warns": sum(1 for r in results if r.status == "warn"),
+        })
+    total    = len(domain_data)
+    critical = sum(1 for d in domain_data if d["fails"] > 0)
+    warning  = sum(1 for d in domain_data if d["fails"] == 0 and d["warns"] > 0)
+    passing  = sum(1 for d in domain_data if d["fails"] == 0 and d["warns"] == 0 and d["score"] is not None)
+    chips = []
+    if total == 0:
+        chips.append('<span class="summary-chip muted-chip">No domains added</span>')
+    else:
+        chips.append(f'<span class="summary-chip neutral-chip">{total} domain{"s" if total != 1 else ""}</span>')
+        if critical:
+            chips.append(f'<span class="summary-chip fail-chip">{critical} critical</span>')
+        if warning:
+            chips.append(f'<span class="summary-chip warn-chip">{warning} warning{"s" if warning != 1 else ""}</span>')
+        if passing == total:
+            chips.append('<span class="summary-chip pass-chip">All passing</span>')
+        elif passing:
+            chips.append(f'<span class="summary-chip pass-chip">{passing} passing</span>')
+    return HTMLResponse("".join(chips))
+
+
 @app.get("/domain/{domain_id}", response_class=HTMLResponse)
 async def domain_detail(domain_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     domain = await db.get(Domain, domain_id)

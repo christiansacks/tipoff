@@ -619,7 +619,7 @@
         <td style="padding:4px 8px;font-weight:600">WordPress Core</td>
         <td style="padding:4px 8px;color:#6b7280">core</td>
         <td style="padding:4px 8px;font-family:monospace">{{ site.version }}</td>
-        <td style="padding:4px 8px;text-align:center;font-weight:700;color:{{ '#dc2626' if is_vuln else '#16a34a' }}">{{ '✗' if is_vuln else '✓' }}</td>
+        <td style="padding:4px 8px;text-align:center"><span class="badge {{ 'badge-fail' if is_vuln else 'badge-pass' }}">{{ 'VULN' if is_vuln else 'OK' }}</span></td>
       </tr>
       {% endif %}
       {% for slug in plugins %}
@@ -630,7 +630,7 @@
         <td style="padding:4px 8px">{{ slug }}</td>
         <td style="padding:4px 8px;color:#6b7280">plugin</td>
         <td style="padding:4px 8px;font-family:monospace">{{ ver or '—' }}</td>
-        <td style="padding:4px 8px;text-align:center;font-weight:700;color:{{ '#dc2626' if is_vuln else '#16a34a' }}">{{ '✗' if is_vuln else '✓' }}</td>
+        <td style="padding:4px 8px;text-align:center"><span class="badge {{ 'badge-fail' if is_vuln else 'badge-pass' }}">{{ 'VULN' if is_vuln else 'OK' }}</span></td>
       </tr>
       {% endfor %}
       {% for slug in themes %}
@@ -641,7 +641,7 @@
         <td style="padding:4px 8px">{{ slug }}</td>
         <td style="padding:4px 8px;color:#6b7280">theme</td>
         <td style="padding:4px 8px;font-family:monospace">{{ ver or '—' }}</td>
-        <td style="padding:4px 8px;text-align:center;font-weight:700;color:{{ '#dc2626' if is_vuln else '#16a34a' }}">{{ '✗' if is_vuln else '✓' }}</td>
+        <td style="padding:4px 8px;text-align:center"><span class="badge {{ 'badge-fail' if is_vuln else 'badge-pass' }}">{{ 'VULN' if is_vuln else 'OK' }}</span></td>
       </tr>
       {% endfor %}
     </tbody>

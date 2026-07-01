@@ -1672,9 +1672,10 @@ async def download_pdf_report(request: Request, db: AsyncSession = Depends(get_d
         )
 
     from weasyprint import HTML as WeasyHTML
+    from sqlalchemy import func as _func
     import asyncio
 
-    # gather all data
+    # Domains
     domains_result = await db.execute(select(Domain))
     domains = domains_result.scalars().all()
     domain_data = []
@@ -1687,20 +1688,96 @@ async def download_pdf_report(request: Request, db: AsyncSession = Depends(get_d
             domain_passes += 1
         domain_data.append({"domain": d, "score": score, "results": results})
 
+    # Hosts
     hosts_result = await db.execute(select(Host))
     hosts = hosts_result.scalars().all()
-    flagged_count  = sum(1 for h in hosts if h.flagged and not h.acknowledged)
-    acked_count    = sum(1 for h in hosts if h.flagged and h.acknowledged)
+    flagged_count = sum(1 for h in hosts if h.flagged and not h.acknowledged)
+    acked_count   = sum(1 for h in hosts if h.flagged and h.acknowledged)
+
+    # Monitors + their most recent check
+    monitors_result = await db.execute(select(Monitor).where(Monitor.enabled == True))
+    monitors = monitors_result.scalars().all()
+    if monitors:
+        subq = (
+            select(UptimeCheck.monitor_id, _func.max(UptimeCheck.checked_at).label("max_at"))
+            .where(UptimeCheck.monitor_id.isnot(None))
+            .group_by(UptimeCheck.monitor_id)
+            .subquery()
+        )
+        last_checks_res = await db.execute(
+            select(UptimeCheck)
+            .join(subq, (UptimeCheck.monitor_id == subq.c.monitor_id) &
+                        (UptimeCheck.checked_at == subq.c.max_at))
+        )
+        last_checks = {uc.monitor_id: uc for uc in last_checks_res.scalars().all()}
+    else:
+        last_checks = {}
+
+    monitor_data = []
+    for mon in monitors:
+        lc = last_checks.get(mon.id)
+        monitor_data.append({
+            "monitor":     mon,
+            "is_up":       lc.is_up if lc else None,
+            "response_ms": lc.response_ms if lc else None,
+            "checked_at":  lc.checked_at if lc else None,
+        })
+    monitors_up = sum(1 for m in monitor_data if m["is_up"] is True)
+
+    # Breach monitoring
+    emails_result = await db.execute(select(MonitoredEmail))
+    raw_emails = emails_result.scalars().all()
+    monitored_emails = []
+    for e in raw_emails:
+        breach_list = []
+        if e.breaches:
+            try:
+                breach_list = json.loads(e.breaches)
+            except Exception:
+                pass
+        monitored_emails.append({"email": e, "breaches": breach_list})
+    emails_breached = sum(1 for m in monitored_emails if m["email"].status == "breached")
+
+    # CE Readiness
+    ce_answers = await _load_ce_answers()
+    ce_scores  = _ce_score(ce_answers)
+
+    # WordPress sites (from domains and hosts already loaded)
+    wp_sites = []
+    for d in domain_data:
+        dom = d["domain"]
+        if dom.is_wordpress:
+            wp_sites.append({
+                "label":        dom.hostname,
+                "version":      dom.wp_version,
+                "scan_at":      dom.wp_scan_at,
+                "scan_results": dom.wp_scan_results or {},
+            })
+    for h in hosts:
+        if h.is_wordpress:
+            wp_sites.append({
+                "label":        h.wp_url or h.hostname or h.ip,
+                "version":      h.wp_version,
+                "scan_at":      h.wp_scan_at,
+                "scan_results": h.wp_scan_results or {},
+            })
 
     html_str = templates.env.get_template("pdf/report.html").render({
-        "generated_at":  datetime.now(timezone.utc).strftime("%d %B %Y at %H:%M UTC"),
-        "domains":       domain_data,
-        "domain_passes": domain_passes,
-        "hosts":         hosts,
-        "flagged_count": flagged_count,
-        "acked_count":   acked_count,
-        "port_info":     PORT_INFO,
-        "license":       _license,
+        "generated_at":     datetime.now(timezone.utc).strftime("%d %B %Y at %H:%M UTC"),
+        "domains":          domain_data,
+        "domain_passes":    domain_passes,
+        "hosts":            hosts,
+        "flagged_count":    flagged_count,
+        "acked_count":      acked_count,
+        "port_info":        PORT_INFO,
+        "license":          _license,
+        "monitors":         monitor_data,
+        "monitors_up":      monitors_up,
+        "monitored_emails": monitored_emails,
+        "emails_breached":  emails_breached,
+        "ce_scores":        ce_scores,
+        "ce_areas":         CE_AREAS,
+        "wp_sites":         wp_sites,
     })
 
     loop = asyncio.get_event_loop()

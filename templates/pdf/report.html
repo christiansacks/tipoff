@@ -222,6 +222,108 @@
   .flag-fix { font-size: 10px; color: #374151; background: #eff6ff; border-radius: 3px; padding: 4px 8px; margin-top: 6px; }
   .ack-note { font-size: 10px; color: #6b7280; font-style: italic; margin-top: 6px; padding-top: 6px; border-top: 1px solid #e5e7eb; }
 
+  /* ── Monitor table ── */
+  .monitor-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+    margin-bottom: 16px;
+  }
+  .monitor-table th {
+    text-align: left;
+    padding: 6px 8px;
+    background: #f3f4f6;
+    border-bottom: 2px solid #d1d5db;
+    font-weight: 600;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #6b7280;
+  }
+  .monitor-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid #f3f4f6;
+    vertical-align: middle;
+  }
+  .monitor-table tr:last-child td { border-bottom: none; }
+
+  /* ── CE area bar ── */
+  .ce-area-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    page-break-inside: avoid;
+  }
+  .ce-area-name { width: 180px; font-size: 10px; font-weight: 600; flex-shrink: 0; }
+  .ce-bar-bg {
+    flex: 1;
+    background: #f3f4f6;
+    border-radius: 4px;
+    height: 10px;
+    overflow: hidden;
+  }
+  .ce-bar-fill {
+    height: 10px;
+    border-radius: 4px;
+    background: #16a34a;
+  }
+  .ce-bar-fill.partial { background: #d97706; }
+  .ce-bar-fill.none    { background: #dc2626; }
+  .ce-pct { width: 32px; text-align: right; font-size: 10px; color: #6b7280; flex-shrink: 0; }
+
+  /* ── WP vuln box ── */
+  .wp-site-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    overflow: hidden;
+    page-break-inside: avoid;
+  }
+  .wp-site-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+    font-size: 11px;
+  }
+  .wp-site-name { font-weight: 600; }
+  .wp-vuln-row {
+    padding: 6px 12px;
+    border-bottom: 1px solid #f3f4f6;
+    font-size: 10px;
+  }
+  .wp-vuln-row:last-child { border-bottom: none; }
+  .wp-vuln-title { font-weight: 600; color: #dc2626; }
+  .wp-vuln-meta  { color: #6b7280; margin-top: 2px; }
+
+  /* ── Breach table ── */
+  .breach-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+    margin-bottom: 16px;
+  }
+  .breach-table th {
+    text-align: left;
+    padding: 6px 8px;
+    background: #f3f4f6;
+    border-bottom: 2px solid #d1d5db;
+    font-weight: 600;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #6b7280;
+  }
+  .breach-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid #f3f4f6;
+    vertical-align: top;
+  }
+  .breach-table tr:last-child td { border-bottom: none; }
+
   /* ── Footer note ── */
   .report-footer {
     margin-top: 24px;
@@ -264,6 +366,18 @@
       <div class="summary-number purple">{{ hosts|length }}</div>
       <div class="summary-label">Hosts Discovered</div>
     </div>
+    {% if monitors %}
+    <div class="summary-card">
+      <div class="summary-number {{ 'green' if monitors_up == monitors|length else 'amber' if monitors_up > 0 else 'red' }}">{{ monitors_up }}/{{ monitors|length }}</div>
+      <div class="summary-label">Monitors Up</div>
+    </div>
+    {% endif %}
+    {% if ce_scores %}
+    <div class="summary-card">
+      <div class="summary-number {{ 'green' if ce_scores.ready else 'amber' if ce_scores.pct >= 50 else 'red' }}">{{ ce_scores.pct }}%</div>
+      <div class="summary-label">CE Readiness</div>
+    </div>
+    {% endif %}
   </div>
 
   <div class="cover-bottom">
@@ -396,6 +510,169 @@
     {% if host.ack_at %} — {{ host.ack_at.strftime("%d %b %Y") }}{% endif %}
   </div>
   {% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
+<!-- ══ UPTIME MONITORS ════════════════════════════════════════════ -->
+{% if monitors %}
+<div class="section-header" style="page-break-before: always;">
+  <h2>Uptime Monitors</h2>
+  <p>{{ monitors|length }} monitor{{ 's' if monitors|length != 1 else '' }} active.
+  {% if monitors_up < monitors|length %}{{ monitors|length - monitors_up }} currently down.{% else %}All responding.{% endif %}</p>
+</div>
+
+<table class="monitor-table">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Endpoint</th>
+      <th>Protocol</th>
+      <th>Status</th>
+      <th>Response</th>
+      <th>Last Checked</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for m in monitors %}
+    <tr>
+      <td style="font-weight:600">{{ m.monitor.name }}</td>
+      <td style="font-family:monospace;font-size:9px">{{ m.monitor.host }}:{{ m.monitor.port }}</td>
+      <td>{{ m.monitor.protocol | upper }}</td>
+      <td>
+        {% if m.is_up is none %}
+          <span class="badge" style="background:#f3f4f6;color:#6b7280">Pending</span>
+        {% elif m.is_up %}
+          <span class="badge badge-pass">Up</span>
+        {% else %}
+          <span class="badge badge-fail">Down</span>
+        {% endif %}
+      </td>
+      <td>{{ m.response_ms ~ ' ms' if m.response_ms else '—' }}</td>
+      <td style="color:#6b7280">{{ m.checked_at.strftime("%d %b %Y %H:%M") if m.checked_at else '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<!-- ══ WORDPRESS SECURITY ════════════════════════════════════════ -->
+{% if wp_sites %}
+<div class="section-header" {% if not monitors %}style="page-break-before: always;"{% endif %}>
+  <h2>WordPress Security</h2>
+  <p>{{ wp_sites|length }} WordPress installation{{ 's' if wp_sites|length != 1 else '' }} detected.</p>
+</div>
+
+{% for site in wp_sites %}
+{% set vulns = site.scan_results.get('vulnerabilities', []) if site.scan_results else [] %}
+<div class="wp-site-card">
+  <div class="wp-site-header">
+    <span class="wp-site-name">{{ site.label }}</span>
+    <span style="color:#6b7280">
+      WordPress {{ site.version or 'version unknown' }}
+      {% if site.scan_at %} · Scanned {{ site.scan_at.strftime("%d %b %Y") }}{% endif %}
+    </span>
+    {% if vulns %}
+      <span class="badge badge-fail">{{ vulns|length }} vuln{{ 's' if vulns|length != 1 else '' }}</span>
+    {% elif site.scan_results and site.scan_results.get('api_used') %}
+      <span class="badge badge-pass">No known vulnerabilities</span>
+    {% else %}
+      <span class="badge" style="background:#f3f4f6;color:#6b7280">No API scan</span>
+    {% endif %}
+  </div>
+  {% for v in vulns %}
+  <div class="wp-vuln-row">
+    <div class="wp-vuln-title">{{ v.title }}</div>
+    <div class="wp-vuln-meta">
+      Component: {{ v.component }}
+      {% if v.cve %} · CVE-{{ v.cve }}{% endif %}
+      {% if v.cvss %} · CVSS {{ v.cvss }}{% endif %}
+      {% if v.fixed_in %} · Fixed in {{ v.fixed_in }}{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+  {% if not vulns and not (site.scan_results and site.scan_results.get('api_used')) %}
+  <div class="wp-vuln-row" style="color:#6b7280">Add a WPScan API key in Settings to enable vulnerability scanning.</div>
+  {% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
+<!-- ══ BREACH MONITORING ══════════════════════════════════════════ -->
+{% if monitored_emails %}
+<div class="section-header" {% if not monitors and not wp_sites %}style="page-break-before: always;"{% endif %}>
+  <h2>Breach Monitoring</h2>
+  <p>{{ monitored_emails|length }} email address{{ 'es' if monitored_emails|length != 1 else '' }} monitored via Have I Been Pwned.
+  {% if emails_breached > 0 %}{{ emails_breached }} found in known data breaches.{% else %}No breaches detected.{% endif %}</p>
+</div>
+
+<table class="breach-table">
+  <thead>
+    <tr>
+      <th>Email Address</th>
+      <th>Status</th>
+      <th>Breaches</th>
+      <th>Last Checked</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in monitored_emails %}
+    <tr>
+      <td style="font-family:monospace">{{ item.email.email }}</td>
+      <td>
+        {% if item.email.status == 'breached' %}
+          <span class="badge badge-fail">Breached</span>
+        {% elif item.email.status == 'clean' %}
+          <span class="badge badge-pass">Clean</span>
+        {% elif item.email.status == 'no_key' %}
+          <span class="badge" style="background:#f3f4f6;color:#6b7280">No API key</span>
+        {% elif item.email.status == 'pending' %}
+          <span class="badge" style="background:#f3f4f6;color:#6b7280">Pending</span>
+        {% else %}
+          <span class="badge" style="background:#f3f4f6;color:#6b7280">{{ item.email.status }}</span>
+        {% endif %}
+      </td>
+      <td style="font-size:9px;color:#6b7280">{{ item.breaches | join(', ') if item.breaches else '—' }}</td>
+      <td style="color:#6b7280">{{ item.email.last_check_at.strftime("%d %b %Y") if item.email.last_check_at else 'Never' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<!-- ══ CYBER ESSENTIALS READINESS ═════════════════════════════════ -->
+{% if ce_scores %}
+<div class="section-header" style="page-break-before: always;">
+  <h2>Cyber Essentials Readiness</h2>
+  <p>Self-assessed readiness across the 5 CE control areas. {{ ce_scores.passed }}/{{ ce_scores.total }} questions answered positively.
+  Note: TipOff is not an accredited Certification Body. This assessment carries no legal standing.</p>
+</div>
+
+<div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap">
+  <div style="border:1px solid #e5e7eb;border-radius:8px;padding:16px;text-align:center;min-width:100px">
+    <div style="font-size:28px;font-weight:700;color:{{ '#16a34a' if ce_scores.ready else '#d97706' if ce_scores.pct >= 50 else '#dc2626' }}">{{ ce_scores.pct }}%</div>
+    <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-top:4px">Overall Score</div>
+  </div>
+  <div style="border:1px solid #e5e7eb;border-radius:8px;padding:16px;text-align:center;min-width:100px">
+    <div style="font-size:28px;font-weight:700;color:{{ '#16a34a' if ce_scores.ready else '#dc2626' }}">{{ 'Ready' if ce_scores.ready else 'Not Ready' }}</div>
+    <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-top:4px">CE Status</div>
+  </div>
+  <div style="border:1px solid #e5e7eb;border-radius:8px;padding:16px;text-align:center;min-width:100px">
+    <div style="font-size:28px;font-weight:700;color:#6366f1">{{ ce_scores.passed }}/{{ ce_scores.total }}</div>
+    <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-top:4px">Questions Passing</div>
+  </div>
+</div>
+
+{% for area in ce_areas %}
+{% set area_score = ce_scores.areas[area.id] if ce_scores.areas and area.id in ce_scores.areas else {'pct': 0, 'passed': 0, 'total': 0} %}
+<div class="ce-area-row">
+  <div class="ce-area-name">{{ area.name }}</div>
+  <div class="ce-bar-bg">
+    <div class="ce-bar-fill {{ 'none' if area_score.pct == 0 else 'partial' if area_score.pct < 100 else '' }}"
+         style="width:{{ area_score.pct }}%"></div>
+  </div>
+  <div class="ce-pct">{{ area_score.pct }}%</div>
+  <div style="font-size:10px;color:#6b7280;width:60px;flex-shrink:0">{{ area_score.passed }}/{{ area_score.total }}</div>
 </div>
 {% endfor %}
 {% endif %}

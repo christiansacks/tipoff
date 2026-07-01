@@ -865,6 +865,15 @@ def _detect_cidr() -> str:
 
 # ── Pages ──────────────────────────────────────────────────────────────────────
 
+@app.get("/logout")
+async def logout():
+    return Response(
+        status_code=401,
+        headers={"WWW-Authenticate": 'Basic realm="TipOff"'},
+        content="Logged out",
+    )
+
+
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     domains_result = await db.execute(select(Domain))

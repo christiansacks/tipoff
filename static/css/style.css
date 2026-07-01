@@ -36,6 +36,63 @@ nav {
 }
 .nav-link:hover { color: var(--text); }
 
+/* ── Hamburger menu ─────────────────────────────────────────── */
+.nav-menu { position: relative; }
+
+.nav-hamburger {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: .35rem .45rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.nav-hamburger span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: var(--muted);
+  border-radius: 2px;
+  transition: background .2s;
+}
+.nav-hamburger:hover span { background: var(--text); }
+
+.nav-dropdown {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 180px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  z-index: 200;
+}
+.nav-dropdown.open { display: block; }
+
+.nav-dropdown-group a {
+  display: block;
+  padding: .55rem 1rem;
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: none;
+  transition: background .15s, color .15s;
+}
+.nav-dropdown-group a:hover {
+  background: var(--surface2);
+  color: var(--text);
+}
+
+.nav-dropdown-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 0;
+}
+
 .logo {
   color: var(--accent);
   font-weight: 700;

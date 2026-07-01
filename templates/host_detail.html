@@ -180,21 +180,66 @@
         {% if r.themes %}<div class="info-row"><span class="info-label">Themes</span><span class="info-value">{{ r.themes | join(", ") }}</span></div>{% endif %}
       </div>
 
-      {% if r.vulnerabilities %}
-        <h3 class="wp-vuln-heading">Vulnerabilities found</h3>
-        {% for v in r.vulnerabilities %}
-        <div class="wp-vuln {{ 'wp-vuln-critical' if v.cvss and v.cvss >= 9 else 'wp-vuln-high' if v.cvss and v.cvss >= 7 else 'wp-vuln-medium' }}">
-          <div class="wp-vuln-header">
-            <span class="wp-vuln-component">{{ v.component }}</span>
-            {% if v.cvss %}<span class="risk-badge risk-{{ 'critical' if v.cvss >= 9 else 'high' if v.cvss >= 7 else 'medium' }}">CVSS {{ v.cvss }}</span>{% endif %}
-            {% if v.cve %}<span class="badge">CVE-{{ v.cve }}</span>{% endif %}
+      {% if r.api_used %}
+        {% set vuln_components = r.vulnerabilities | map(attribute='component') | list %}
+        {% set total_checked = (r.plugins | length) + (r.themes | length) + (1 if r.version else 0) %}
+
+        {% if r.vulnerabilities %}
+          <h3 class="wp-vuln-heading">Vulnerabilities found</h3>
+          {% for v in r.vulnerabilities %}
+          <div class="wp-vuln {{ 'wp-vuln-critical' if v.cvss and v.cvss >= 9 else 'wp-vuln-high' if v.cvss and v.cvss >= 7 else 'wp-vuln-medium' }}">
+            <div class="wp-vuln-header">
+              <span class="wp-vuln-component">{{ v.component }}</span>
+              {% if v.cvss %}<span class="risk-badge risk-{{ 'critical' if v.cvss >= 9 else 'high' if v.cvss >= 7 else 'medium' }}">CVSS {{ v.cvss }}</span>{% endif %}
+              {% if v.cve %}<span class="badge">CVE-{{ v.cve }}</span>{% endif %}
+            </div>
+            <p class="wp-vuln-title">{{ v.title }}</p>
+            {% if v.fixed_in %}<p class="wp-vuln-fix">Fixed in v{{ v.fixed_in }}</p>{% endif %}
           </div>
-          <p class="wp-vuln-title">{{ v.title }}</p>
-          {% if v.fixed_in %}<p class="wp-vuln-fix">Fixed in v{{ v.fixed_in }}</p>{% endif %}
-        </div>
-        {% endfor %}
-      {% elif r.api_used %}
-        <p class="empty-state" style="color:var(--green)">✓ No known vulnerabilities found for detected components.</p>
+          {% endfor %}
+        {% endif %}
+
+        <details class="wp-checklist">
+          <summary>
+            {% if r.vulnerabilities %}
+              {{ r.vulnerabilities | length }} issue{{ 's' if r.vulnerabilities | length != 1 else '' }} — {{ total_checked }} component{{ 's' if total_checked != 1 else '' }} checked
+            {% else %}
+              <span style="color:var(--green)">✓ No vulnerabilities — {{ total_checked }} component{{ 's' if total_checked != 1 else '' }} all clean</span>
+            {% endif %}
+          </summary>
+          <div class="wp-checklist-body">
+            {% if r.version %}
+            {% set is_vuln = 'WordPress Core' in vuln_components %}
+            <div class="wp-check-row {{ 'fail' if is_vuln else 'pass' }}">
+              <span class="wp-check-icon">{{ '✗' if is_vuln else '✓' }}</span>
+              <span>WordPress Core</span>
+              <span class="wp-check-ver">v{{ r.version }}</span>
+            </div>
+            {% endif %}
+            {% for slug in r.plugins %}
+            {% set comp = "Plugin: " + slug %}
+            {% set is_vuln = comp in vuln_components %}
+            {% set ver = r.plugin_versions[slug] if slug in r.plugin_versions else none %}
+            <div class="wp-check-row {{ 'fail' if is_vuln else 'pass' }}">
+              <span class="wp-check-icon">{{ '✗' if is_vuln else '✓' }}</span>
+              <span>{{ slug }}</span>
+              {% if ver %}<span class="wp-check-ver">v{{ ver }}</span>{% endif %}
+              <span class="wp-check-type">plugin</span>
+            </div>
+            {% endfor %}
+            {% for slug in r.themes %}
+            {% set comp = "Theme: " + slug %}
+            {% set is_vuln = comp in vuln_components %}
+            {% set ver = r.theme_versions[slug] if slug in r.theme_versions else none %}
+            <div class="wp-check-row {{ 'fail' if is_vuln else 'pass' }}">
+              <span class="wp-check-icon">{{ '✗' if is_vuln else '✓' }}</span>
+              <span>{{ slug }}</span>
+              {% if ver %}<span class="wp-check-ver">v{{ ver }}</span>{% endif %}
+              <span class="wp-check-type">theme</span>
+            </div>
+            {% endfor %}
+          </div>
+        </details>
       {% else %}
         <div class="wp-pro-nudge">
           <strong>Pro:</strong> Add a WPScan API key in Settings to check for known CVEs in this WordPress install, its plugins and themes.

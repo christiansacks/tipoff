@@ -1,15 +1,18 @@
 # TipOff
 
-**Self-hosted security health checks for small businesses.**
+**Self-hosted security monitoring for small businesses.**
 
 TipOff runs as a Docker container on your network and continuously monitors your:
 
-- **External domains** — SSL certificates, SPF, DMARC, DKIM, security headers, HTTPS redirect, domain expiry
-- **LAN hosts** — auto-discovery, open port risk analysis, vendor/OS detection, acknowledge/mitigate workflow
-- **Email breaches** — staff email addresses checked against Have I Been Pwned, password breach checker built in
+- **External domains** — SSL certificates, SPF, DMARC, DKIM, security headers, HTTPS redirect, domain expiry. Score each domain 0–60 and acknowledge known issues with notes.
+- **LAN hosts** — auto-discovery via nmap/ARP, open port risk analysis, vendor/OS detection, near-realtime connectivity checks (TCP every 5 minutes), acknowledge/mitigate workflow
+- **Uptime monitors** — TCP and HTTP/HTTPS service monitors with response time history and up/down tracking
+- **WordPress scanning** — detect WordPress installations on domains and LAN hosts, check plugins and themes against the WPScan vulnerability database (API key required)
+- **Email breaches** — staff email addresses checked against Have I Been Pwned, password breach checker included
 - **Cyber Essentials readiness** — guided questionnaire across all 5 CE control areas, auto-populated from scan evidence
+- **Webhook notifications** — instant alerts to Discord, Slack, ntfy, or Matrix when monitors go down, hosts go offline, or new issues are found
 
-All checks, data, and reports stay on your own infrastructure — nothing is sent to external services except the DNS checks themselves.
+All checks, data, and reports stay on your own infrastructure — nothing is sent to external services except the checks themselves.
 
 ---
 
@@ -106,13 +109,42 @@ You can customise the DNS servers used under **Settings → DNS Servers**.
 
 ---
 
-## LAN Discovery
+## LAN Discovery & Host Monitoring
 
 TipOff uses `nmap` + ARP to discover hosts on your network.
 
 Enter one or more CIDR ranges (comma-separated) in the dashboard, e.g. `192.168.1.0/24, 10.0.0.0/24`. Scheduled auto-scans can be configured under **Settings → LAN Scan Schedule**.
 
+Once hosts are discovered, TipOff TCP-checks every open port every 5 minutes, giving you a near-realtime view of which hosts and ports are online. If a host or port goes unreachable, you can receive an instant webhook alert (see below).
+
+Hosts with risky open ports (Telnet, SMB, RDP etc.) are flagged with a risk level and remediation advice. You can acknowledge flagged hosts with a note to remove them from the active alert count.
+
 > **Linux only:** LAN discovery requires `network_mode: host`, `NET_RAW`, and `NET_ADMIN` capabilities, which are pre-configured in `docker-compose.yml`. These are needed for raw socket ARP scanning.
+
+---
+
+## Uptime Monitors
+
+Add TCP or HTTP/HTTPS monitors under the **Monitors** page. TipOff checks them every 5 minutes, records response times, and tracks up/down history. Webhook alerts fire when a monitor transitions from up to down or back.
+
+---
+
+## WordPress Scanning
+
+TipOff detects WordPress installations on both domains and LAN hosts. With a [WPScan API key](https://wpscan.com/api) configured under **Settings → WPScan**, it checks every detected plugin, theme, and WordPress core version against the WPScan vulnerability database and reports CVEs with CVSS scores and fix versions.
+
+---
+
+## Webhook Notifications
+
+Configure webhooks under the **Webhooks** page to receive instant alerts for:
+
+- Monitor goes down / comes back up
+- LAN host goes offline / comes back online
+- Domain expiry warning
+- New port opened or closed on a LAN host
+
+Supports **Discord**, **Slack**, **Mattermost** (generic JSON), **ntfy**, and **Matrix**.
 
 ---
 
@@ -145,13 +177,16 @@ The **CE questionnaire** covers all five Cyber Essentials control areas:
 4. Malware Protection
 5. Patch Management
 
-Where scan evidence exists (e.g. dangerous open ports found, SSL failures), TipOff automatically surfaces it on the relevant question with an "⚡ scan evidence" badge.
+Where scan evidence exists (e.g. dangerous open ports found, SSL failures, missing security headers), TipOff automatically surfaces it on the relevant question with an "⚡ scan evidence" badge. Overall CE readiness is tracked as a percentage and shown on the dashboard at a glance.
 
 ---
 
-## Shareable Read-Only Link
+## Public Status Page & Read-Only Link
 
-Generate a read-only link under **Settings → Shareable Link**. Share it with a manager, auditor, or client to give them a live view of the dashboard without login credentials. The link works on your local network; configure a custom domain under the same setting if you want a friendlier URL.
+TipOff has two ways to share visibility without giving out credentials:
+
+- **Public status page** (`/status`) — a clean, unauthenticated page showing uptime and domain health for any monitors or domains you mark as public. Suitable for sharing with customers or colleagues.
+- **Read-only dashboard link** — generate a token under **Settings → Shareable Link** to give someone a live view of the full dashboard (read-only). Configure a custom domain under the same setting for a friendlier URL.
 
 ---
 

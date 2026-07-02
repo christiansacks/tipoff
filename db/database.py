@@ -53,6 +53,9 @@ class Host(Base):
     wp_url           = Column(String, nullable=True)
     wp_scan_at       = Column(DateTime, nullable=True)
     wp_scan_results  = Column(JSON, nullable=True)
+    host_online      = Column(Boolean, nullable=True)   # None = never checked
+    port_status      = Column(JSON, nullable=True)      # {"80": true, "443": false}
+    last_ping_at     = Column(DateTime, nullable=True)
 
 
 class ScanResult(Base):
@@ -165,6 +168,9 @@ async def init_db():
             "ALTER TABLE domains ADD COLUMN uptime_alerted BOOLEAN DEFAULT FALSE",
             "ALTER TABLE uptime_checks ADD COLUMN monitor_id TEXT",
             "ALTER TABLE webhooks ADD COLUMN webhook_type TEXT DEFAULT 'json'",
+            "ALTER TABLE hosts ADD COLUMN host_online BOOLEAN",
+            "ALTER TABLE hosts ADD COLUMN port_status TEXT",
+            "ALTER TABLE hosts ADD COLUMN last_ping_at DATETIME",
         ]:
             try:
                 await conn.execute(text(sql))

@@ -123,10 +123,27 @@
 <!-- ── All open ports ────────────────────────────────────────────── -->
 {% if ports %}
 <section class="card">
-  <h2 class="section-title {{ 'ack' if host.acknowledged and flagged_ports else 'fail' if flagged_ports else 'pass' }}">Open Ports</h2>
+  <div class="card-header" style="margin-bottom:.75rem">
+    <h2 class="section-title {{ 'ack' if host.acknowledged and flagged_ports else 'fail' if flagged_ports else 'pass' }}" style="margin-bottom:0">Open Ports</h2>
+    {% if host.last_ping_at %}
+      <span class="muted-text" style="font-size:11px;margin-left:auto">
+        Connectivity checked {{ host.last_ping_at.strftime("%H:%M:%S") }}
+        &nbsp;·&nbsp;
+        {% if host.host_online %}
+          <span style="color:var(--pass)">● Host online</span>
+        {% else %}
+          <span style="color:var(--fail)">● Host offline</span>
+        {% endif %}
+      </span>
+    {% endif %}
+  </div>
   {% for p in ports %}
+  {% set pkey = p.port | string %}
+  {% set pstate = host.port_status[pkey] if host.port_status and pkey in host.port_status else none %}
   <div class="port-detail-row risk-{{ p.risk }}">
     <div class="port-detail-header">
+      <span class="port-ping-dot {{ 'dot-up' if pstate == true else 'dot-down' if pstate == false else 'dot-unknown' }}"
+            title="{{ 'Responding' if pstate == true else 'Unreachable' if pstate == false else 'Not yet checked' }}"></span>
       <span class="port-detail-badge">{{ p.port }}/{{ p.display_name }}</span>
       {% if p.risk not in ("info", "low") %}
         <span class="risk-badge risk-{{ p.risk }}">{{ p.risk }}</span>
@@ -135,6 +152,9 @@
       {% endif %}
       {% if p.version %}
         <span class="port-version">{{ p.version }}</span>
+      {% endif %}
+      {% if pstate == false %}
+        <span style="font-size:11px;color:var(--fail);margin-left:auto">unreachable</span>
       {% endif %}
     </div>
     {% if p.description %}

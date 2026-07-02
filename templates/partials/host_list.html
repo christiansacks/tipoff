@@ -26,7 +26,12 @@
       <td>{{ host.vendor if host.vendor and host.vendor != 'Unknown' else '—' }}</td>
       <td>
         {% for p in host.open_ports %}
-          <span class="port {{ 'dangerous' if p.dangerous else '' }}">{{ p.port }}/{{ p.service }}</span>
+          {% set pkey = p.port | string %}
+          {% set pstate = host.port_status[pkey] if host.port_status and pkey in host.port_status else none %}
+          <span class="port {{ 'dangerous' if p.dangerous else '' }} {{ 'port-down' if pstate == false else 'port-up' if pstate == true else '' }}"
+                title="{{ p.port }}/{{ p.service }}{{ ' — unreachable' if pstate == false else ' — responding' if pstate == true else '' }}">
+            {{ p.port }}/{{ p.service }}
+          </span>
         {% else %}
           <span class="muted-text">none detected</span>
         {% endfor %}
@@ -34,6 +39,11 @@
       <td>
         {% if new_cutoff is defined and host.first_seen and host.first_seen > new_cutoff %}
           <span class="badge new">NEW</span>
+        {% endif %}
+        {% if host.host_online is not none %}
+          <span class="host-ping {{ 'host-ping-up' if host.host_online else 'host-ping-down' }}">
+            {{ '● Online' if host.host_online else '● Offline' }}
+          </span>
         {% endif %}
         {% if host.flagged and host.acknowledged %}
           <span class="badge ack">✓ Ack'd</span>

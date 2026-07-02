@@ -532,6 +532,28 @@ async def _run_uptime_checks():
                 mon.uptime_alerted = False
                 newly_up.append(("monitor", label))
 
+        # ── Host connectivity checks (TCP ping all known ports) ────────────
+        hosts_result = await db.execute(select(Host))
+        for host in hosts_result.scalars().all():
+            if not host.open_ports:
+                continue
+            port_nums = [p["port"] for p in host.open_ports]
+            check_results = await asyncio.gather(
+                *[_tcp_check(host.ip, port, timeout=3) for port in port_nums]
+            )
+            new_port_status = {
+                str(port): is_up for port, (is_up, _) in zip(port_nums, check_results)
+            }
+            new_host_online = any(new_port_status.values())
+            label = host.hostname or host.ip
+            if host.host_online is True and not new_host_online:
+                newly_down.append(("host", label))
+            elif host.host_online is False and new_host_online:
+                newly_up.append(("host", label))
+            host.port_status   = new_port_status
+            host.host_online   = new_host_online
+            host.last_ping_at  = now
+
         # Prune checks older than 90 days
         cutoff = now - timedelta(days=90)
         await db.execute(delete(UptimeCheck).where(UptimeCheck.checked_at < cutoff))
@@ -555,11 +577,17 @@ async def _run_uptime_checks():
         except Exception as e:
             print(f"Uptime alert email failed: {e}")
 
-    # Fire webhooks for each down/up transition (no Pro gate)
-    for _, label in newly_down:
-        await _fire_webhooks("monitor_down", {"name": label, "status": "went DOWN"})
-    for _, label in newly_up:
-        await _fire_webhooks("monitor_up", {"name": label, "status": "came back UP"})
+    # Fire webhooks — split host events from monitor/domain events
+    for kind, label in newly_down:
+        if kind == "host":
+            await _fire_webhooks("host_offline", {"name": label, "status": "went offline"})
+        else:
+            await _fire_webhooks("monitor_down", {"name": label, "status": "went DOWN"})
+    for kind, label in newly_up:
+        if kind == "host":
+            await _fire_webhooks("host_online", {"name": label, "status": "came back online"})
+        else:
+            await _fire_webhooks("monitor_up", {"name": label, "status": "came back UP"})
 
 
 async def _send_domain_expiry_alerts():

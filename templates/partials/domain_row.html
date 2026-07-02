@@ -17,7 +17,7 @@
       {% if scanning %}
         <span class="scanning-indicator">Scanning…</span>
       {% else %}
-        Last scanned: {{ item.domain.last_scan_at.strftime("%d %b %Y %H:%M") }}
+        Last scanned: {{ item.domain.last_scan_at.strftime("%d %b %Y %H:%M") }}{% if item.domain.next_scan_at %} · Next: {{ item.domain.next_scan_at.strftime("%d %b %Y %H:%M") }}{% endif %}
       {% endif %}
     </span>
   </div>

@@ -988,11 +988,12 @@ async def partials_domains(request: Request, db: AsyncSession = Depends(get_db))
     for d in domains:
         scans = await db.execute(select(ScanResult).where(ScanResult.domain_id == d.id))
         results = scans.scalars().all()
+        acked_ids = set((d.acked_checks or {}).keys())
         domain_data.append({
             "domain": d,
             "score": _score_from_rows(results),
-            "fails": sum(1 for r in results if r.status == "fail"),
-            "warns": sum(1 for r in results if r.status == "warn"),
+            "fails": sum(1 for r in results if r.status == "fail" and r.check_id not in acked_ids),
+            "warns": sum(1 for r in results if r.status == "warn" and r.check_id not in acked_ids),
             "results": results,
         })
     return templates.TemplateResponse("partials/domains_list.html", {

@@ -122,8 +122,11 @@ class MonitoredEmail(Base):
     added_at      = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     last_check_at = Column(DateTime, nullable=True)
     status        = Column(String, default="pending")  # pending/clean/breached/no_key/error/rate_limited/invalid_key
-    breaches      = Column(String, nullable=True)       # JSON list of breach names
+    breaches      = Column(String, nullable=True)       # JSON list of breach names (HIBP)
     breach_count  = Column(Integer, default=0)
+    lc_status     = Column(String, default="pending")  # LeakCheck status
+    lc_breaches   = Column(String, nullable=True)       # JSON list of breach names (LeakCheck)
+    lc_count      = Column(Integer, default=0)
 
 
 # ── Password hashing (PBKDF2-SHA256, no extra deps) ────────────────────────────
@@ -173,6 +176,9 @@ async def init_db():
             "ALTER TABLE hosts ADD COLUMN port_status TEXT",
             "ALTER TABLE hosts ADD COLUMN last_ping_at DATETIME",
             "ALTER TABLE domains ADD COLUMN acked_checks TEXT",
+            "ALTER TABLE monitored_emails ADD COLUMN lc_status TEXT DEFAULT 'pending'",
+            "ALTER TABLE monitored_emails ADD COLUMN lc_breaches TEXT",
+            "ALTER TABLE monitored_emails ADD COLUMN lc_count INTEGER DEFAULT 0",
         ]:
             try:
                 await conn.execute(text(sql))

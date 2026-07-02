@@ -799,8 +799,8 @@ details.wp-checklist[open] summary::before { transform: rotate(90deg); }
 .breach-email-list { display: flex; flex-direction: column; gap: .4rem; margin-bottom: 1rem; }
 .breach-email-row {
   display: flex;
-  align-items: flex-start;
-  gap: .6rem;
+  flex-direction: column;
+  gap: .4rem;
   padding: .55rem .7rem;
   border-radius: 6px;
   background: var(--surface);
@@ -809,9 +809,12 @@ details.wp-checklist[open] summary::before { transform: rotate(90deg); }
 }
 .breach-email-row.breached { border-color: rgba(220,38,38,.35); background: rgba(220,38,38,.04); }
 .breach-email-row.clean    { border-color: rgba(22,163,74,.25); }
-.breach-email-info { display: flex; align-items: center; gap: .5rem; flex: 1; flex-wrap: wrap; }
+.breach-email-info { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 .breach-email-addr { font-size: 14px; font-weight: 500; color: var(--text); }
 .breach-checked-at { font-size: 11px; color: var(--muted); margin-left: auto; }
+.breach-sources { display: flex; flex-direction: column; gap: .3rem; flex: 1; }
+.breach-source-row { display: flex; align-items: flex-start; flex-wrap: wrap; gap: .4rem; }
+.breach-source-label { font-size: 11px; color: var(--muted); width: 70px; flex-shrink: 0; padding-top: 2px; }
 .breach-names { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .3rem; width: 100%; padding-left: .1rem; }
 .breach-name-chip {
   font-size: 11px;
@@ -828,7 +831,9 @@ details.wp-checklist[open] summary::before { transform: rotate(90deg); }
   cursor: pointer;
   padding: 0 2px;
   line-height: 1;
-  flex-shrink: 0;
+  position: absolute;
+  top: .5rem;
+  right: .5rem;
 }
 .breach-email-delete:hover { color: var(--fail); }
 .muted-badge {

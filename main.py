@@ -203,18 +203,23 @@ async def _load_hibp_settings():
 
 
 async def _run_breach_checks():
-    """Check all monitored emails against HIBP. Called from the hourly scheduler."""
+    """Check all monitored emails against HIBP and LeakCheck."""
     import asyncio as _asyncio
     from db.database import SessionLocal
     from scanner.checks.hibp_email import check_email_breaches
+    from scanner.checks.leakcheck import check_email_leakcheck
     async with SessionLocal() as db:
         result = await db.execute(select(MonitoredEmail))
         emails = result.scalars().all()
         for me in emails:
-            result = await check_email_breaches(me.email, _hibp_api_key)
-            me.status        = result["status"]
-            me.breach_count  = result["count"]
-            me.breaches      = json.dumps(result["breaches"])
+            hibp = await check_email_breaches(me.email, _hibp_api_key)
+            me.status        = hibp["status"]
+            me.breach_count  = hibp["count"]
+            me.breaches      = json.dumps(hibp["breaches"])
+            lc = await check_email_leakcheck(me.email)
+            me.lc_status     = lc["status"]
+            me.lc_count      = lc["count"]
+            me.lc_breaches   = json.dumps(lc["breaches"])
             me.last_check_at = datetime.now(timezone.utc)
             await _asyncio.sleep(1.6)  # stay under HIBP's rate limit
         await db.commit()
@@ -1664,6 +1669,7 @@ async def partials_breach_emails(request: Request, db: AsyncSession = Depends(ge
     emails = result.scalars().all()
     for me in emails:
         me._breaches_list = json.loads(me.breaches) if me.breaches else []
+        me._lc_breaches_list = json.loads(me.lc_breaches) if me.lc_breaches else []
     return _tpl("partials/breach_emails.html", {
         "request": request,
         "emails": emails,
@@ -1691,6 +1697,7 @@ async def add_monitored_email(
     emails = result.scalars().all()
     for me in emails:
         me._breaches_list = json.loads(me.breaches) if me.breaches else []
+        me._lc_breaches_list = json.loads(me.lc_breaches) if me.lc_breaches else []
     return _tpl("partials/breach_emails.html", {
         "request": request,
         "emails": emails,
@@ -1710,6 +1717,7 @@ async def delete_monitored_email(
     emails = result.scalars().all()
     for me in emails:
         me._breaches_list = json.loads(me.breaches) if me.breaches else []
+        me._lc_breaches_list = json.loads(me.lc_breaches) if me.lc_breaches else []
     return _tpl("partials/breach_emails.html", {
         "request": request,
         "emails": emails,

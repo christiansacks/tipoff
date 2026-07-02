@@ -951,7 +951,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         "host_ports_down":  sum(1 for h in hosts if h.host_online is True and h.port_status and any(not v for v in h.port_status.values())),
         "hosts_checked":    any(h.host_online is not None for h in hosts),
         "breach_monitored": len(emails),
-        "breach_count":     sum(1 for e in emails if e.status == "breached"),
+        "breach_count":     sum(1 for e in emails if e.status == "breached" or e.lc_status == "breached"),
         "ce_pct":           ce_scores["pct"],
         "ce_remaining":     ce_scores["total"] - ce_scores["passed"],
     })

@@ -128,7 +128,11 @@ class MonitoredEmail(Base):
     lc_breaches   = Column(String, nullable=True)       # JSON list of breach names (LeakCheck)
     lc_count      = Column(Integer, default=0)
     hibp_acked    = Column(Boolean, default=False)
+    hibp_ack_at   = Column(DateTime, nullable=True)
+    hibp_ack_note = Column(String, nullable=True)
     lc_acked      = Column(Boolean, default=False)
+    lc_ack_at     = Column(DateTime, nullable=True)
+    lc_ack_note   = Column(String, nullable=True)
 
 
 # ── Password hashing (PBKDF2-SHA256, no extra deps) ────────────────────────────
@@ -182,7 +186,11 @@ async def init_db():
             "ALTER TABLE monitored_emails ADD COLUMN lc_breaches TEXT",
             "ALTER TABLE monitored_emails ADD COLUMN lc_count INTEGER DEFAULT 0",
             "ALTER TABLE monitored_emails ADD COLUMN hibp_acked BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE monitored_emails ADD COLUMN hibp_ack_at DATETIME",
+            "ALTER TABLE monitored_emails ADD COLUMN hibp_ack_note TEXT",
             "ALTER TABLE monitored_emails ADD COLUMN lc_acked BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE monitored_emails ADD COLUMN lc_ack_at DATETIME",
+            "ALTER TABLE monitored_emails ADD COLUMN lc_ack_note TEXT",
         ]:
             try:
                 await conn.execute(text(sql))

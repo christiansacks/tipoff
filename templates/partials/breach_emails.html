@@ -16,12 +16,20 @@
         <span class="breach-source-label">HIBP</span>
         {% if me.status == "breached" %}
           {% if me.hibp_acked %}
-            <span class="badge ack">✓ Acknowledged</span>
-            {% if not readonly %}
-            <button class="breach-unack-link"
-                    hx-delete="/breach/emails/{{ me.id }}/ack/hibp"
-                    hx-target="#breach-email-list" hx-swap="innerHTML">Remove</button>
-            {% endif %}
+            <div class="breach-ack-status">
+              <div class="ack-status-row">
+                <span class="ack-icon">✓</span>
+                <div>
+                  <div class="ack-meta">Acknowledged{% if me.hibp_ack_at %} {{ me.hibp_ack_at.strftime("%d %b %Y at %H:%M") }}{% endif %}</div>
+                  {% if me.hibp_ack_note %}<div class="ack-note">"{{ me.hibp_ack_note }}"</div>{% endif %}
+                </div>
+              </div>
+              {% if not readonly %}
+              <button class="btn-unack"
+                      hx-delete="/breach/emails/{{ me.id }}/ack/hibp"
+                      hx-target="#breach-email-list" hx-swap="innerHTML">Remove acknowledgement</button>
+              {% endif %}
+            </div>
           {% else %}
             <span class="badge fail">{{ me.breach_count }} breach{{ "es" if me.breach_count != 1 else "" }}</span>
             {% if me._breaches_list %}
@@ -32,9 +40,12 @@
             {% if not readonly %}
             <details class="check-ack-details">
               <summary>Acknowledge this</summary>
-              <button hx-post="/breach/emails/{{ me.id }}/ack/hibp"
-                      hx-target="#breach-email-list" hx-swap="innerHTML"
-                      style="margin-top:.4rem">Mark as handled</button>
+              <form hx-post="/breach/emails/{{ me.id }}/ack/hibp"
+                    hx-target="#breach-email-list" hx-swap="innerHTML"
+                    class="check-ack-form">
+                <input type="text" name="ack_note" placeholder="Note (optional)">
+                <button type="submit" class="btn-ack">Mark as Acknowledged</button>
+              </form>
             </details>
             {% endif %}
           {% endif %}
@@ -58,12 +69,20 @@
         <span class="breach-source-label">LeakCheck</span>
         {% if me.lc_status == "breached" %}
           {% if me.lc_acked %}
-            <span class="badge ack">✓ Acknowledged</span>
-            {% if not readonly %}
-            <button class="breach-unack-link"
-                    hx-delete="/breach/emails/{{ me.id }}/ack/lc"
-                    hx-target="#breach-email-list" hx-swap="innerHTML">Remove</button>
-            {% endif %}
+            <div class="breach-ack-status">
+              <div class="ack-status-row">
+                <span class="ack-icon">✓</span>
+                <div>
+                  <div class="ack-meta">Acknowledged{% if me.lc_ack_at %} {{ me.lc_ack_at.strftime("%d %b %Y at %H:%M") }}{% endif %}</div>
+                  {% if me.lc_ack_note %}<div class="ack-note">"{{ me.lc_ack_note }}"</div>{% endif %}
+                </div>
+              </div>
+              {% if not readonly %}
+              <button class="btn-unack"
+                      hx-delete="/breach/emails/{{ me.id }}/ack/lc"
+                      hx-target="#breach-email-list" hx-swap="innerHTML">Remove acknowledgement</button>
+              {% endif %}
+            </div>
           {% else %}
             <span class="badge fail">{{ me.lc_count }} breach{{ "es" if me.lc_count != 1 else "" }}</span>
             {% if me._lc_breaches_list %}
@@ -74,9 +93,12 @@
             {% if not readonly %}
             <details class="check-ack-details">
               <summary>Acknowledge this</summary>
-              <button hx-post="/breach/emails/{{ me.id }}/ack/lc"
-                      hx-target="#breach-email-list" hx-swap="innerHTML"
-                      style="margin-top:.4rem">Mark as handled</button>
+              <form hx-post="/breach/emails/{{ me.id }}/ack/lc"
+                    hx-target="#breach-email-list" hx-swap="innerHTML"
+                    class="check-ack-form">
+                <input type="text" name="ack_note" placeholder="Note (optional)">
+                <button type="submit" class="btn-ack">Mark as Acknowledged</button>
+              </form>
             </details>
             {% endif %}
           {% endif %}

@@ -1732,14 +1732,18 @@ async def delete_monitored_email(
 
 
 @app.post("/breach/emails/{email_id}/ack/{source}", response_class=HTMLResponse)
-async def ack_breach(email_id: str, source: str, request: Request, db: AsyncSession = Depends(get_db)):
+async def ack_breach(email_id: str, source: str, request: Request, ack_note: str = Form(""), db: AsyncSession = Depends(get_db)):
     me = await db.get(MonitoredEmail, email_id)
     if not me:
         return HTMLResponse("Not found", status_code=404)
     if source == "hibp":
         me.hibp_acked = True
+        me.hibp_ack_at = datetime.now(timezone.utc)
+        me.hibp_ack_note = ack_note.strip()
     elif source == "lc":
         me.lc_acked = True
+        me.lc_ack_at = datetime.now(timezone.utc)
+        me.lc_ack_note = ack_note.strip()
     await db.commit()
     result = await db.execute(select(MonitoredEmail))
     emails = result.scalars().all()
@@ -1756,8 +1760,12 @@ async def unack_breach(email_id: str, source: str, request: Request, db: AsyncSe
         return HTMLResponse("Not found", status_code=404)
     if source == "hibp":
         me.hibp_acked = False
+        me.hibp_ack_at = None
+        me.hibp_ack_note = None
     elif source == "lc":
         me.lc_acked = False
+        me.lc_ack_at = None
+        me.lc_ack_note = None
     await db.commit()
     result = await db.execute(select(MonitoredEmail))
     emails = result.scalars().all()

@@ -912,8 +912,9 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         scans = await db.execute(select(ScanResult).where(ScanResult.domain_id == d.id))
         results = scans.scalars().all()
         score = _score_from_rows(results)
-        fails  = sum(1 for r in results if r.status == "fail")
-        warns  = sum(1 for r in results if r.status == "warn")
+        acked_ids = set((d.acked_checks or {}).keys())
+        fails  = sum(1 for r in results if r.status == "fail" and r.check_id not in acked_ids)
+        warns  = sum(1 for r in results if r.status == "warn" and r.check_id not in acked_ids)
         domain_data.append({"domain": d, "score": score, "fails": fails, "warns": warns, "results": results})
 
     hosts_result = await db.execute(select(Host))
@@ -1009,10 +1010,11 @@ async def partials_domain_summary(request: Request, db: AsyncSession = Depends(g
     for d in domains:
         scans = await db.execute(select(ScanResult).where(ScanResult.domain_id == d.id))
         results = scans.scalars().all()
+        acked_ids = set((d.acked_checks or {}).keys())
         domain_data.append({
             "score": _score_from_rows(results),
-            "fails": sum(1 for r in results if r.status == "fail"),
-            "warns": sum(1 for r in results if r.status == "warn"),
+            "fails": sum(1 for r in results if r.status == "fail" and r.check_id not in acked_ids),
+            "warns": sum(1 for r in results if r.status == "warn" and r.check_id not in acked_ids),
         })
     total    = len(domain_data)
     critical = sum(1 for d in domain_data if d["fails"] > 0)
@@ -1034,29 +1036,72 @@ async def partials_domain_summary(request: Request, db: AsyncSession = Depends(g
     return HTMLResponse("".join(chips))
 
 
-@app.get("/domain/{domain_id}", response_class=HTMLResponse)
-async def domain_detail(domain_id: str, request: Request, db: AsyncSession = Depends(get_db)):
+async def _render_domain_detail(domain_id: str, request: Request, db: AsyncSession):
     domain = await db.get(Domain, domain_id)
     if not domain:
         return HTMLResponse("Not found", status_code=404)
-
-    scans = await db.execute(
-        select(ScanResult).where(ScanResult.domain_id == domain_id)
-    )
+    scans = await db.execute(select(ScanResult).where(ScanResult.domain_id == domain_id))
     results = scans.scalars().all()
-    fails  = [r for r in results if r.status == "fail"]
-    warns  = [r for r in results if r.status == "warn"]
+    acked_ids = set((domain.acked_checks or {}).keys())
+    fails  = [r for r in results if r.status == "fail" and r.check_id not in acked_ids]
+    warns  = [r for r in results if r.status == "warn" and r.check_id not in acked_ids]
     passes = [r for r in results if r.status == "pass"]
+    acked  = [r for r in results if r.status in ("fail", "warn") and r.check_id in acked_ids]
     score  = _score_from_rows(results)
-
     return _tpl("domain_detail.html", {
-        "request":  request,
-        "domain":   domain,
-        "fails":    fails,
-        "warns":    warns,
-        "passes":   passes,
-        "score":    score,
+        "request": request,
+        "domain":  domain,
+        "fails":   fails,
+        "warns":   warns,
+        "passes":  passes,
+        "acked":   acked,
+        "score":   score,
     })
+
+
+@app.get("/domain/{domain_id}", response_class=HTMLResponse)
+async def domain_detail(domain_id: str, request: Request, db: AsyncSession = Depends(get_db)):
+    return await _render_domain_detail(domain_id, request, db)
+
+
+@app.post("/domains/{domain_id}/checks/{check_id}/ack", response_class=HTMLResponse)
+async def ack_domain_check(
+    domain_id: str,
+    check_id: str,
+    request: Request,
+    ack_note: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    domain = await db.get(Domain, domain_id)
+    if not domain:
+        return HTMLResponse("Not found", status_code=404)
+    acked = dict(domain.acked_checks or {})
+    acked[check_id] = {
+        "note":     ack_note.strip(),
+        "acked_at": datetime.now(timezone.utc).isoformat(),
+    }
+    domain.acked_checks = acked
+    await db.commit()
+    await db.refresh(domain)
+    return await _render_domain_detail(domain_id, request, db)
+
+
+@app.delete("/domains/{domain_id}/checks/{check_id}/ack", response_class=HTMLResponse)
+async def unack_domain_check(
+    domain_id: str,
+    check_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    domain = await db.get(Domain, domain_id)
+    if not domain:
+        return HTMLResponse("Not found", status_code=404)
+    acked = dict(domain.acked_checks or {})
+    acked.pop(check_id, None)
+    domain.acked_checks = acked
+    await db.commit()
+    await db.refresh(domain)
+    return await _render_domain_detail(domain_id, request, db)
 
 
 # ── Actions ────────────────────────────────────────────────────────────────────

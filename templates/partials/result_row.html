@@ -4,4 +4,14 @@
   {% if r.remediation %}
     <div class="result-remediation">Fix: {{ r.remediation }}</div>
   {% endif %}
+  {% if not readonly and domain is defined and r.status in ('fail', 'warn') %}
+  <details class="check-ack-details">
+    <summary>Acknowledge this issue</summary>
+    <form hx-post="/domains/{{ domain.id }}/checks/{{ r.check_id }}/ack"
+          hx-target="main" hx-swap="innerHTML" class="check-ack-form">
+      <input type="text" name="ack_note" placeholder="Reason (optional) — e.g. domain not used for email">
+      <button type="submit">Acknowledge</button>
+    </form>
+  </details>
+  {% endif %}
 </div>

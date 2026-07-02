@@ -29,6 +29,7 @@ class Domain(Base):
     wp_version        = Column(String, nullable=True)
     wp_scan_at        = Column(DateTime, nullable=True)
     wp_scan_results   = Column(JSON, nullable=True)
+    acked_checks      = Column(JSON, nullable=True)  # {check_id: {note, acked_at}}
 
 
 class Host(Base):
@@ -171,6 +172,7 @@ async def init_db():
             "ALTER TABLE hosts ADD COLUMN host_online BOOLEAN",
             "ALTER TABLE hosts ADD COLUMN port_status TEXT",
             "ALTER TABLE hosts ADD COLUMN last_ping_at DATETIME",
+            "ALTER TABLE domains ADD COLUMN acked_checks TEXT",
         ]:
             try:
                 await conn.execute(text(sql))

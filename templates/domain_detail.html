@@ -15,7 +15,7 @@
   {% endif %}
 </div>
 
-{% if not fails and not warns and not passes %}
+{% if not fails and not warns and not passes and not acked %}
   <div class="card"><p>Scan in progress — check back in a moment.</p></div>
 {% endif %}
 
@@ -42,6 +42,27 @@
   <h2 class="section-title pass">Passing</h2>
   {% for r in passes %}
     {% include "partials/result_row.html" %}
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if acked %}
+<section class="card">
+  <h2 class="section-title ack">Acknowledged Issues</h2>
+  {% for r in acked %}
+  {% set ack_data = domain.acked_checks[r.check_id] if domain.acked_checks and r.check_id in domain.acked_checks else {} %}
+  <div class="result-row acked">
+    <div class="result-title">{{ r.title }}</div>
+    <div class="result-detail">{{ r.detail }}</div>
+    {% if ack_data.note %}<div style="font-size:12px;color:var(--muted);font-style:italic;margin-top:.3rem">"{{ ack_data.note }}"</div>{% endif %}
+    {% if ack_data.acked_at %}<div style="font-size:11px;color:var(--muted);margin-top:.2rem">Acknowledged {{ ack_data.acked_at[:10] }}</div>{% endif %}
+    {% if not readonly %}
+    <button hx-delete="/domains/{{ domain.id }}/checks/{{ r.check_id }}/ack"
+            hx-target="main" hx-swap="innerHTML"
+            hx-confirm="Remove acknowledgement for '{{ r.title }}'?"
+            class="btn-unack" style="margin-top:.5rem">Remove acknowledgement</button>
+    {% endif %}
+  </div>
   {% endfor %}
 </section>
 {% endif %}

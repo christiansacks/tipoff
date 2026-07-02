@@ -449,6 +449,13 @@ details.wp-checklist[open] summary::before { transform: rotate(90deg); }
 .result-row.warn { border-left-color: var(--warn); background: rgba(245,158,11,.05); }
 .result-row.pass { border-left-color: var(--pass); background: rgba(34,197,94,.05); }
 .result-row.error { border-left-color: var(--muted); }
+.result-row.acked { border-left-color: var(--muted); background: transparent; opacity: 0.6; }
+.check-ack-details { margin-top: .5rem; }
+.check-ack-details > summary { font-size:11px; color:var(--muted); cursor:pointer; list-style:none; display:inline; text-decoration:underline; text-underline-offset:2px; }
+.check-ack-details > summary::-webkit-details-marker { display:none; }
+.check-ack-form { display:flex; gap:.5rem; align-items:center; margin-top:.4rem; }
+.check-ack-form input { flex:1; background:var(--surface); border:1px solid var(--border); border-radius:4px; color:var(--text); padding:.3rem .6rem; font-size:12px; }
+.check-ack-form button { font-size:12px; padding:.3rem .75rem; }
 
 .result-title { font-weight: 600; margin-bottom: 0.2rem; }
 .result-detail { color: var(--muted); margin-bottom: 0.3rem; font-size: 13px; }

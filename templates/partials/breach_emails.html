@@ -15,13 +15,27 @@
       <div class="breach-source-row">
         <span class="breach-source-label">HIBP</span>
         {% if me.status == "breached" %}
-          <span class="badge fail">{{ me.breach_count }} breach{{ "es" if me.breach_count != 1 else "" }}</span>
-          {% if me._breaches_list %}
-            <div class="breach-names">
-              {% for name in me._breaches_list %}
-                <span class="breach-name-chip">{{ name }}</span>
-              {% endfor %}
-            </div>
+          {% if me.hibp_acked %}
+            <span class="badge muted-badge">Acknowledged</span>
+            {% if not readonly %}
+            <button class="btn-ack-breach active"
+                    hx-delete="/breach/emails/{{ me.id }}/ack/hibp"
+                    hx-target="#breach-email-list" hx-swap="innerHTML"
+                    title="Unacknowledge">✓ Acked</button>
+            {% endif %}
+          {% else %}
+            <span class="badge fail">{{ me.breach_count }} breach{{ "es" if me.breach_count != 1 else "" }}</span>
+            {% if me._breaches_list %}
+              <div class="breach-names">
+                {% for name in me._breaches_list %}<span class="breach-name-chip">{{ name }}</span>{% endfor %}
+              </div>
+            {% endif %}
+            {% if not readonly %}
+            <button class="btn-ack-breach"
+                    hx-post="/breach/emails/{{ me.id }}/ack/hibp"
+                    hx-target="#breach-email-list" hx-swap="innerHTML"
+                    title="Mark as handled">Acknowledge</button>
+            {% endif %}
           {% endif %}
         {% elif me.status == "clean" %}
           <span class="badge pass">Not found</span>
@@ -42,13 +56,27 @@
       <div class="breach-source-row">
         <span class="breach-source-label">LeakCheck</span>
         {% if me.lc_status == "breached" %}
-          <span class="badge fail">{{ me.lc_count }} breach{{ "es" if me.lc_count != 1 else "" }}</span>
-          {% if me._lc_breaches_list %}
-            <div class="breach-names">
-              {% for name in me._lc_breaches_list %}
-                <span class="breach-name-chip">{{ name }}</span>
-              {% endfor %}
-            </div>
+          {% if me.lc_acked %}
+            <span class="badge muted-badge">Acknowledged</span>
+            {% if not readonly %}
+            <button class="btn-ack-breach active"
+                    hx-delete="/breach/emails/{{ me.id }}/ack/lc"
+                    hx-target="#breach-email-list" hx-swap="innerHTML"
+                    title="Unacknowledge">✓ Acked</button>
+            {% endif %}
+          {% else %}
+            <span class="badge fail">{{ me.lc_count }} breach{{ "es" if me.lc_count != 1 else "" }}</span>
+            {% if me._lc_breaches_list %}
+              <div class="breach-names">
+                {% for name in me._lc_breaches_list %}<span class="breach-name-chip">{{ name }}</span>{% endfor %}
+              </div>
+            {% endif %}
+            {% if not readonly %}
+            <button class="btn-ack-breach"
+                    hx-post="/breach/emails/{{ me.id }}/ack/lc"
+                    hx-target="#breach-email-list" hx-swap="innerHTML"
+                    title="Mark as handled">Acknowledge</button>
+            {% endif %}
           {% endif %}
         {% elif me.lc_status == "clean" %}
           <span class="badge pass">Not found</span>

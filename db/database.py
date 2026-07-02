@@ -127,6 +127,8 @@ class MonitoredEmail(Base):
     lc_status     = Column(String, default="pending")  # LeakCheck status
     lc_breaches   = Column(String, nullable=True)       # JSON list of breach names (LeakCheck)
     lc_count      = Column(Integer, default=0)
+    hibp_acked    = Column(Boolean, default=False)
+    lc_acked      = Column(Boolean, default=False)
 
 
 # ── Password hashing (PBKDF2-SHA256, no extra deps) ────────────────────────────
@@ -179,6 +181,8 @@ async def init_db():
             "ALTER TABLE monitored_emails ADD COLUMN lc_status TEXT DEFAULT 'pending'",
             "ALTER TABLE monitored_emails ADD COLUMN lc_breaches TEXT",
             "ALTER TABLE monitored_emails ADD COLUMN lc_count INTEGER DEFAULT 0",
+            "ALTER TABLE monitored_emails ADD COLUMN hibp_acked BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE monitored_emails ADD COLUMN lc_acked BOOLEAN DEFAULT FALSE",
         ]:
             try:
                 await conn.execute(text(sql))

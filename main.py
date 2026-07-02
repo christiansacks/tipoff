@@ -213,13 +213,19 @@ async def _run_breach_checks():
         emails = result.scalars().all()
         for me in emails:
             hibp = await check_email_breaches(me.email, _hibp_api_key)
+            prev_hibp_count = me.breach_count or 0
             me.status        = hibp["status"]
             me.breach_count  = hibp["count"]
             me.breaches      = json.dumps(hibp["breaches"])
+            if hibp["count"] > prev_hibp_count:
+                me.hibp_acked = False
             lc = await check_email_leakcheck(me.email)
+            prev_lc_count = me.lc_count or 0
             me.lc_status     = lc["status"]
             me.lc_count      = lc["count"]
             me.lc_breaches   = json.dumps(lc["breaches"])
+            if lc["count"] > prev_lc_count:
+                me.lc_acked = False
             me.last_check_at = datetime.now(timezone.utc)
             await _asyncio.sleep(1.6)  # stay under HIBP's rate limit
         await db.commit()
@@ -951,7 +957,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         "host_ports_down":  sum(1 for h in hosts if h.host_online is True and h.port_status and any(not v for v in h.port_status.values())),
         "hosts_checked":    any(h.host_online is not None for h in hosts),
         "breach_monitored": len(emails),
-        "breach_count":     sum(1 for e in emails if e.status == "breached" or e.lc_status == "breached"),
+        "breach_count":     sum(1 for e in emails if (e.status == "breached" and not e.hibp_acked) or (e.lc_status == "breached" and not e.lc_acked)),
         "ce_pct":           ce_scores["pct"],
         "ce_remaining":     ce_scores["total"] - ce_scores["passed"],
     })
@@ -1723,6 +1729,42 @@ async def delete_monitored_email(
         "emails": emails,
         "hibp_configured": bool(_hibp_api_key),
     })
+
+
+@app.post("/breach/emails/{email_id}/ack/{source}", response_class=HTMLResponse)
+async def ack_breach(email_id: str, source: str, request: Request, db: AsyncSession = Depends(get_db)):
+    me = await db.get(MonitoredEmail, email_id)
+    if not me:
+        return HTMLResponse("Not found", status_code=404)
+    if source == "hibp":
+        me.hibp_acked = True
+    elif source == "lc":
+        me.lc_acked = True
+    await db.commit()
+    result = await db.execute(select(MonitoredEmail))
+    emails = result.scalars().all()
+    for e in emails:
+        e._breaches_list = json.loads(e.breaches) if e.breaches else []
+        e._lc_breaches_list = json.loads(e.lc_breaches) if e.lc_breaches else []
+    return _tpl("partials/breach_emails.html", {"request": request, "emails": emails, "hibp_configured": bool(_hibp_api_key)})
+
+
+@app.delete("/breach/emails/{email_id}/ack/{source}", response_class=HTMLResponse)
+async def unack_breach(email_id: str, source: str, request: Request, db: AsyncSession = Depends(get_db)):
+    me = await db.get(MonitoredEmail, email_id)
+    if not me:
+        return HTMLResponse("Not found", status_code=404)
+    if source == "hibp":
+        me.hibp_acked = False
+    elif source == "lc":
+        me.lc_acked = False
+    await db.commit()
+    result = await db.execute(select(MonitoredEmail))
+    emails = result.scalars().all()
+    for e in emails:
+        e._breaches_list = json.loads(e.breaches) if e.breaches else []
+        e._lc_breaches_list = json.loads(e.lc_breaches) if e.lc_breaches else []
+    return _tpl("partials/breach_emails.html", {"request": request, "emails": emails, "hibp_configured": bool(_hibp_api_key)})
 
 
 @app.post("/breach/check", response_class=HTMLResponse)

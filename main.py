@@ -722,13 +722,14 @@ _discovery_jobs: dict[str, dict] = {}
 async def run_due_scans():
     from db.database import SessionLocal
     async with SessionLocal() as db:
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()  # naive UTC — matches SQLite storage
         result = await db.execute(
             select(Domain).where(Domain.next_scan_at <= now)
         )
         domains = result.scalars().all()
         for domain in domains:
             try:
+                print(f"Scanning {domain.hostname}…")
                 results = await scan_domain(domain.hostname)
                 await db.execute(
                     delete(ScanResult).where(
@@ -2058,8 +2059,8 @@ async def _scan_and_store(hostname: str):
                     score_impact=r.score_impact,
                     raw=r.raw,
                 ))
-            domain.last_scan_at = datetime.now(timezone.utc)
-            domain.next_scan_at = datetime.now(timezone.utc) + timedelta(hours=24)
+            domain.last_scan_at = datetime.utcnow()
+            domain.next_scan_at = datetime.utcnow() + timedelta(hours=24)
             await db.commit()
         except Exception as e:
             print(f"Background scan failed for {hostname}: {e}")

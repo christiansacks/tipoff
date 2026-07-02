@@ -101,8 +101,20 @@
           {% if host_acked > 0 %}
             <span class="summary-chip warn-chip">{{ host_acked }} acknowledged</span>
           {% endif %}
-          {% if host_flagged == 0 %}
-            <span class="summary-chip pass-chip">All clear</span>
+          {% if hosts_checked %}
+            {% if host_offline > 0 %}
+              <span class="summary-chip fail-chip">● {{ host_offline }} offline</span>
+            {% endif %}
+            {% if host_ports_down > 0 %}
+              <span class="summary-chip warn-chip">● {{ host_ports_down }} port{{ 's' if host_ports_down != 1 }} unreachable</span>
+            {% endif %}
+            {% if host_flagged == 0 and host_offline == 0 and host_ports_down == 0 %}
+              <span class="summary-chip pass-chip">● All online</span>
+            {% endif %}
+          {% else %}
+            {% if host_flagged == 0 %}
+              <span class="summary-chip pass-chip">All clear</span>
+            {% endif %}
           {% endif %}
         {% endif %}
       </div>

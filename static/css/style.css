@@ -836,18 +836,17 @@ details.wp-checklist[open] summary::before { transform: rotate(90deg); }
   right: .5rem;
 }
 .breach-email-delete:hover { color: var(--fail); }
-.btn-ack-breach {
-  font-size: 11px;
-  padding: 1px 7px;
-  border-radius: 4px;
-  border: 1px solid var(--border);
+.breach-unack-link {
   background: none;
+  border: none;
   color: var(--muted);
+  font-size: 11px;
   cursor: pointer;
-  line-height: 1.6;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
-.btn-ack-breach:hover { border-color: var(--pass); color: var(--pass); }
-.btn-ack-breach.active { border-color: var(--pass); color: var(--pass); background: rgba(22,163,74,.08); }
+.breach-unack-link:hover { color: var(--text); }
 .muted-badge {
   background: var(--surface);
   border: 1px solid var(--border);

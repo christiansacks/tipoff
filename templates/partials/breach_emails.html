@@ -16,12 +16,11 @@
         <span class="breach-source-label">HIBP</span>
         {% if me.status == "breached" %}
           {% if me.hibp_acked %}
-            <span class="badge muted-badge">Acknowledged</span>
+            <span class="badge ack">✓ Acknowledged</span>
             {% if not readonly %}
-            <button class="btn-ack-breach active"
+            <button class="breach-unack-link"
                     hx-delete="/breach/emails/{{ me.id }}/ack/hibp"
-                    hx-target="#breach-email-list" hx-swap="innerHTML"
-                    title="Unacknowledge">✓ Acked</button>
+                    hx-target="#breach-email-list" hx-swap="innerHTML">Remove</button>
             {% endif %}
           {% else %}
             <span class="badge fail">{{ me.breach_count }} breach{{ "es" if me.breach_count != 1 else "" }}</span>
@@ -31,10 +30,12 @@
               </div>
             {% endif %}
             {% if not readonly %}
-            <button class="btn-ack-breach"
-                    hx-post="/breach/emails/{{ me.id }}/ack/hibp"
-                    hx-target="#breach-email-list" hx-swap="innerHTML"
-                    title="Mark as handled">Acknowledge</button>
+            <details class="check-ack-details">
+              <summary>Acknowledge this</summary>
+              <button hx-post="/breach/emails/{{ me.id }}/ack/hibp"
+                      hx-target="#breach-email-list" hx-swap="innerHTML"
+                      style="margin-top:.4rem">Mark as handled</button>
+            </details>
             {% endif %}
           {% endif %}
         {% elif me.status == "clean" %}
@@ -57,12 +58,11 @@
         <span class="breach-source-label">LeakCheck</span>
         {% if me.lc_status == "breached" %}
           {% if me.lc_acked %}
-            <span class="badge muted-badge">Acknowledged</span>
+            <span class="badge ack">✓ Acknowledged</span>
             {% if not readonly %}
-            <button class="btn-ack-breach active"
+            <button class="breach-unack-link"
                     hx-delete="/breach/emails/{{ me.id }}/ack/lc"
-                    hx-target="#breach-email-list" hx-swap="innerHTML"
-                    title="Unacknowledge">✓ Acked</button>
+                    hx-target="#breach-email-list" hx-swap="innerHTML">Remove</button>
             {% endif %}
           {% else %}
             <span class="badge fail">{{ me.lc_count }} breach{{ "es" if me.lc_count != 1 else "" }}</span>
@@ -72,10 +72,12 @@
               </div>
             {% endif %}
             {% if not readonly %}
-            <button class="btn-ack-breach"
-                    hx-post="/breach/emails/{{ me.id }}/ack/lc"
-                    hx-target="#breach-email-list" hx-swap="innerHTML"
-                    title="Mark as handled">Acknowledge</button>
+            <details class="check-ack-details">
+              <summary>Acknowledge this</summary>
+              <button hx-post="/breach/emails/{{ me.id }}/ack/lc"
+                      hx-target="#breach-email-list" hx-swap="innerHTML"
+                      style="margin-top:.4rem">Mark as handled</button>
+            </details>
             {% endif %}
           {% endif %}
         {% elif me.lc_status == "clean" %}

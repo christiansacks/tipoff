@@ -307,6 +307,21 @@ async def discover_network(cidr: str, progress: dict | None = None) -> list[dict
 def _ipv6_interfaces() -> list[str]:
     """Return LAN interface names that have an IPv6 address (excludes loopback)."""
     ifaces = []
+    # Primary: read /proc/net/if_inet6 (always available, no iproute2 needed)
+    # Format: addr iface_idx prefix_len scope flags ifname
+    try:
+        with open("/proc/net/if_inet6") as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 6:
+                    iface = parts[5]
+                    if iface != "lo" and iface not in ifaces:
+                        ifaces.append(iface)
+    except Exception:
+        pass
+    if ifaces:
+        return ifaces
+    # Fallback: ip -6 addr show (requires iproute2)
     try:
         out = subprocess.run(["ip", "-6", "addr", "show"], capture_output=True, text=True, timeout=5).stdout
         current = None

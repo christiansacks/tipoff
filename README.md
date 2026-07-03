@@ -5,7 +5,8 @@
 TipOff runs as a Docker container on your network and continuously monitors your:
 
 - **External domains** — SSL certificates, SPF, DMARC, DKIM, security headers, HTTPS redirect, domain expiry. Score each domain 0–60 and acknowledge known issues with notes.
-- **LAN hosts** — auto-discovery via nmap/ARP, open port risk analysis, vendor/OS detection, near-realtime connectivity checks (TCP every 5 minutes), acknowledge/mitigate workflow
+- **LAN hosts** — auto-discovery via nmap/ARP, open port risk analysis, vendor/OS detection, automatic VM detection, IPv6 neighbour discovery, host tagging, near-realtime connectivity checks (TCP every 5 minutes), acknowledge/mitigate workflow
+- **Network map** — interactive topology view of your network: gateway, infrastructure tier, and devices grouped by /24 subnet or discovery CIDR — three toggleable modes
 - **Uptime monitors** — TCP and HTTP/HTTPS service monitors with response time history and up/down tracking
 - **WordPress scanning** — detect WordPress installations on domains and LAN hosts, check plugins and themes against the WPScan vulnerability database (API key required)
 - **Email breaches** — staff email addresses checked against Have I Been Pwned, password breach checker included
@@ -119,7 +120,30 @@ Once hosts are discovered, TipOff TCP-checks every open port every 5 minutes, gi
 
 Hosts with risky open ports (Telnet, SMB, RDP etc.) are flagged with a risk level and remediation advice. You can acknowledge flagged hosts with a note to remove them from the active alert count.
 
+**VM detection:** TipOff automatically identifies virtual machines using MAC address analysis — both known hypervisor OUI prefixes (VMware, VirtualBox, Hyper-V, Parallels, QEMU, Xen) and the locally-administered address (LAA) bit, which covers Proxmox and other hypervisors that assign random MACs. Detected VMs are tagged with a `VM` badge.
+
+**IPv6 discovery:** After each LAN scan, TipOff sends an ICMPv6 multicast ping to discover IPv6-capable neighbours and records their addresses. Hosts with IPv6 are tagged with a `v6` badge; full address details (global and link-local) are shown in the host detail view.
+
+**Host tagging:** Add your own freeform tags to any host — `production`, `dmz`, `printer`, whatever makes sense for your network. The dashboard includes a tag filter bar so you can quickly isolate a group of hosts.
+
 > **Linux only:** LAN discovery requires `network_mode: host`, `NET_RAW`, and `NET_ADMIN` capabilities, which are pre-configured in `docker-compose.yml`. These are needed for raw socket ARP scanning.
+
+---
+
+## Network Map
+
+The **Network Map** (`/topology`) gives you an at-a-glance visual of your network topology:
+
+- **Default gateway** highlighted at the top
+- **Infrastructure tier** — routers, switches, APs and similar devices auto-classified by vendor and hostname
+- **Devices** — everything else, with VM, v6, and user tags shown inline
+
+Three toggle modes:
+- **By /24** — devices split into columns by /24 subnet (useful for seeing your `.0.x`, `.1.x`, `.10.x` ranges at a glance)
+- **By network** — devices grouped by the CIDR block you entered in discovery settings
+- **Flat** — all devices in one pool
+
+The selected mode is remembered in your browser. The network map is also included in PDF reports (Pro).
 
 ---
 
@@ -209,7 +233,7 @@ TipOff Free includes all scanning and monitoring features.
 
 **TipOff Pro** unlocks:
 
-- PDF report generation
+- PDF report generation (domain checks, host inventory, network map, breach status, CE readiness — all in one report with clickable table of contents)
 - Email alerts and weekly digests
 - Email breach monitoring (HIBP)
 - MSP features (coming soon)

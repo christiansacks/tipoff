@@ -57,6 +57,8 @@ class Host(Base):
     host_online      = Column(Boolean, nullable=True)   # None = never checked
     port_status      = Column(JSON, nullable=True)      # {"80": true, "443": false}
     last_ping_at     = Column(DateTime, nullable=True)
+    is_vm            = Column(Boolean, default=False)
+    tags             = Column(JSON, default=list)
 
 
 class ScanResult(Base):
@@ -191,6 +193,8 @@ async def init_db():
             "ALTER TABLE monitored_emails ADD COLUMN lc_acked BOOLEAN DEFAULT FALSE",
             "ALTER TABLE monitored_emails ADD COLUMN lc_ack_at DATETIME",
             "ALTER TABLE monitored_emails ADD COLUMN lc_ack_note TEXT",
+            "ALTER TABLE hosts ADD COLUMN is_vm BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE hosts ADD COLUMN tags TEXT DEFAULT '[]'",
         ]:
             try:
                 await conn.execute(text(sql))

@@ -42,6 +42,30 @@
       {% endfor %}
     </div>
     {% endif %}
+
+    <!-- Tags -->
+    <div class="host-tags" data-host-tags="{{ (host.tags or []) | join(',') }}">
+      {% if host.is_vm %}<span class="host-tag-chip host-tag-auto">VM</span>{% endif %}
+      {% for tag in (host.tags or []) %}
+        <span class="host-tag-chip">{{ tag }}{% if not readonly %}<button class="host-tag-remove"
+          hx-delete="/hosts/{{ host.id }}/tags/{{ tag | urlencode }}"
+          hx-target="#host-area" hx-swap="innerHTML"
+          title="Remove tag">×</button>{% endif %}</span>
+      {% endfor %}
+      {% if not readonly %}
+      <details class="host-tag-add-wrap">
+        <summary class="host-tag-add-btn">+ tag</summary>
+        <form hx-post="/hosts/{{ host.id }}/tags"
+              hx-target="#host-area" hx-swap="innerHTML"
+              class="host-tag-form"
+              hx-on::after-request="this.closest('details').removeAttribute('open')">
+          <input type="text" name="tag" placeholder="e.g. homelab" maxlength="40" required>
+          <button type="submit">Add</button>
+        </form>
+      </details>
+      {% endif %}
+    </div>
+
     <div class="host-footer">
       <span class="agent-status">
         {% if host.agent_installed %}Agent: active{% else %}No agent{% endif %}

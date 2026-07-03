@@ -1304,6 +1304,7 @@ async def rescan_host_route(
     host.open_ports = data.get("open_ports", [])
     host.flagged    = data.get("flagged", False)
     host.last_seen  = datetime.now(timezone.utc)
+    host.is_vm      = data.get("is_vm", host.is_vm or False)
     await db.commit()
     await db.refresh(host)
 
@@ -1403,6 +1404,52 @@ async def delete_host(host_id: str, db: AsyncSession = Depends(get_db)):
     await db.execute(delete(Host).where(Host.id == host_id))
     await db.commit()
     return HTMLResponse("")
+
+
+@app.post("/hosts/{host_id}/tags", response_class=HTMLResponse)
+async def add_host_tag(
+    host_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    form = await request.form()
+    tag  = (form.get("tag") or "").strip()[:40]
+    if not tag:
+        return HTMLResponse("")
+    host = await db.get(Host, host_id)
+    if not host:
+        return HTMLResponse("Not found", status_code=404)
+    current = list(host.tags or [])
+    if tag not in current:
+        current.append(tag)
+        host.tags = current
+        await db.commit()
+    hosts_result = await db.execute(select(Host))
+    return templates.TemplateResponse("partials/host_both_views.html", {
+        "request":   request,
+        "hosts":     hosts_result.scalars().all(),
+        "new_cutoff": datetime.now() - timedelta(hours=24),
+    })
+
+
+@app.delete("/hosts/{host_id}/tags/{tag}", response_class=HTMLResponse)
+async def remove_host_tag(
+    host_id: str,
+    tag: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    host = await db.get(Host, host_id)
+    if not host:
+        return HTMLResponse("Not found", status_code=404)
+    host.tags = [t for t in (host.tags or []) if t != tag]
+    await db.commit()
+    hosts_result = await db.execute(select(Host))
+    return templates.TemplateResponse("partials/host_both_views.html", {
+        "request":   request,
+        "hosts":     hosts_result.scalars().all(),
+        "new_cutoff": datetime.now() - timedelta(hours=24),
+    })
 
 
 @app.post("/domains/{domain_id}/rescan", response_class=HTMLResponse)
@@ -2003,6 +2050,7 @@ async def _run_discovery_job(job_id: str, cidr: str):
                     host_row.open_ports = h.get("open_ports", [])
                     host_row.flagged    = h.get("flagged", False)
                     host_row.last_seen  = datetime.now(timezone.utc)
+                    host_row.is_vm      = h.get("is_vm", False)
                 else:
                     db.add(Host(
                         ip=h["ip"],
@@ -2012,6 +2060,7 @@ async def _run_discovery_job(job_id: str, cidr: str):
                         os_guess=h.get("os_guess", ""),
                         open_ports=h.get("open_ports", []),
                         flagged=h.get("flagged", False),
+                        is_vm=h.get("is_vm", False),
                     ))
             await db.commit()
         for change in port_changes:

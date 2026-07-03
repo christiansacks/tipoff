@@ -142,6 +142,10 @@
         </form>
         {% endif %}
       </div>
+      <div id="tag-filter-bar" class="tag-filter-bar" style="display:none">
+        <span class="tag-filter-label">Filter:</span>
+        <button class="tag-filter-btn active" data-tag="">All</button>
+      </div>
       <div id="host-area" class="host-area view-grid">
         <div id="host-grid">{% include "partials/host_grid.html" %}</div>
         <div id="host-list">{% include "partials/host_list.html" %}</div>
@@ -300,9 +304,64 @@
     applySort(col, asc ? 'asc' : 'desc');
   });
   document.addEventListener('htmx:afterSwap', function(e) {
-    if (e.detail.target && e.detail.target.id === 'host-area') restoreSort();
+    if (e.detail.target && e.detail.target.id === 'host-area') {
+      restoreSort();
+      rebuildTagFilter();
+      applyTagFilter(_activeTag);
+    }
   });
   restoreSort();
+
+  // ── Tag filter ─────────────────────────────────────────────────
+  let _activeTag = '';
+
+  function collectTags() {
+    const tags = new Set();
+    document.querySelectorAll('[data-host-tags]').forEach(el => {
+      (el.dataset.hostTags || '').split(',').forEach(t => { if (t) tags.add(t); });
+    });
+    return [...tags].sort();
+  }
+
+  function rebuildTagFilter() {
+    const bar  = document.getElementById('tag-filter-bar');
+    const tags = collectTags();
+    if (!bar) return;
+    bar.style.display = tags.length ? '' : 'none';
+    // keep "All" button, rebuild rest
+    bar.querySelectorAll('[data-tag]:not([data-tag=""])').forEach(b => b.remove());
+    tags.forEach(tag => {
+      const btn = document.createElement('button');
+      btn.className = 'tag-filter-btn' + (_activeTag === tag ? ' active' : '');
+      btn.dataset.tag = tag;
+      btn.textContent = tag;
+      btn.onclick = () => setTagFilter(tag);
+      bar.appendChild(btn);
+    });
+    const allBtn = bar.querySelector('[data-tag=""]');
+    if (allBtn) {
+      allBtn.classList.toggle('active', _activeTag === '');
+      allBtn.onclick = () => setTagFilter('');
+    }
+  }
+
+  function applyTagFilter(tag) {
+    document.querySelectorAll('.host-card, .host-table-row').forEach(el => {
+      if (!tag) { el.style.display = ''; return; }
+      const tags = (el.dataset.hostTags || '').split(',');
+      el.style.display = tags.includes(tag) ? '' : 'none';
+    });
+  }
+
+  function setTagFilter(tag) {
+    _activeTag = tag;
+    applyTagFilter(tag);
+    document.querySelectorAll('.tag-filter-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.tag === tag);
+    });
+  }
+
+  rebuildTagFilter();
 </script>
 
 {% endblock %}

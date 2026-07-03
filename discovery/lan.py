@@ -6,6 +6,33 @@ import dns.query
 import dns.rdatatype
 import dns.reversename
 
+# Known hypervisor/virtualisation MAC OUI prefixes (first 3 octets, lowercase)
+_VM_OUIS = {
+    "00:50:56",  # VMware
+    "00:0c:29",  # VMware Workstation/Player
+    "00:05:69",  # VMware (legacy)
+    "08:00:27",  # VirtualBox
+    "00:15:5d",  # Hyper-V
+    "52:54:00",  # QEMU/KVM/Proxmox
+    "00:16:3e",  # Xen
+    "00:1c:42",  # Parallels
+    "50:6b:8d",  # Nutanix AHV
+}
+
+
+def _is_vm_mac(mac: str) -> bool:
+    if not mac:
+        return False
+    # Known hypervisor OUI prefixes
+    if mac.lower()[:8] in _VM_OUIS:
+        return True
+    # Locally Administered Address bit (0x02 in first octet) — set by Proxmox/QEMU
+    # when generating random MACs for VMs; real NIC hardware uses globally unique MACs
+    try:
+        return bool(int(mac.split(":")[0], 16) & 0x02)
+    except Exception:
+        return False
+
 
 def _read_arp_cache() -> dict[str, dict]:
     """Read the kernel ARP cache from /proc/net/arp."""
@@ -236,7 +263,9 @@ async def rescan_host(ip: str) -> dict:
     hostname  = await _lookup_hostname(ip)
     arp_cache = _read_arp_cache()
     arp_data  = arp_cache.get(ip, {"mac": "", "vendor": ""})
-    return {**arp_data, **scan_data, "hostname": hostname}
+    result    = {**arp_data, **scan_data, "hostname": hostname}
+    result["is_vm"] = _is_vm_mac(result.get("mac", ""))
+    return result
 
 
 async def discover_network(cidr: str, progress: dict | None = None) -> list[dict]:
@@ -268,6 +297,8 @@ async def discover_network(cidr: str, progress: dict | None = None) -> list[dict
                 progress["scanned"] = progress.get("scanned", 0) + 1
                 progress["stage"]   = f"Scanning hosts… {progress['scanned']}/{progress['total']}"
             arp_data = arp_cache.get(ip, {"mac": "", "vendor": ""})
-            return {**arp_data, **scan_data, "hostname": hostname}
+            result   = {**arp_data, **scan_data, "hostname": hostname}
+            result["is_vm"] = _is_vm_mac(result.get("mac", ""))
+            return result
 
     return await asyncio.gather(*[_scan(ip) for ip in live_ips])

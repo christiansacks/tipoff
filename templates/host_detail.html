@@ -30,9 +30,6 @@
       <span class="info-label">IPv4</span>
       <span class="info-value mono">{{ host.ip }}</span>
     </div>
-    {% if host.ipv6_addresses %}
-    {% set global_v6 = host.ipv6_addresses | reject('startswith', 'fe80') | list %}
-    {% set local_v6  = host.ipv6_addresses | select('startswith', 'fe80') | list %}
     {% if global_v6 %}
     <div class="info-row">
       <span class="info-label">IPv6</span>
@@ -44,7 +41,6 @@
       <span class="info-label">IPv6 link-local</span>
       <span class="info-value mono" style="color:var(--muted)">{% for a in local_v6 %}{{ a }}{% if not loop.last %}<br>{% endif %}{% endfor %}</span>
     </div>
-    {% endif %}
     {% endif %}
     {% if host.hostname %}
     <div class="info-row">
@@ -70,13 +66,13 @@
       <span class="info-value">{{ host.os_guess }}</span>
     </div>
     {% endif %}
-    {% set all_tags = ((['VM'] if host.is_vm else []) + (host.tags or [])) %}
+    {% set all_tags = ((['VM'] if host.is_vm else []) + (['v6'] if host.ipv6_addresses else []) + (host.tags or [])) %}
     {% if all_tags %}
     <div class="info-row">
       <span class="info-label">Tags</span>
       <span class="info-value">
         {% for tag in all_tags %}
-          <span class="host-tag-chip {{ 'host-tag-auto' if tag == 'VM' else '' }}">{{ tag }}</span>
+          <span class="host-tag-chip {{ 'host-tag-auto' if tag == 'VM' else 'host-tag-v6' if tag == 'v6' else '' }}">{{ tag }}</span>
         {% endfor %}
       </span>
     </div>

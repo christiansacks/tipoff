@@ -1277,11 +1277,14 @@ async def host_detail(host_id: str, request: Request, db: AsyncSession = Depends
         return HTMLResponse("Not found", status_code=404)
     ports = enrich_ports(host.open_ports or [])
     flagged_ports = [p for p in ports if p["risk"] in ("critical", "high")]
+    all_v6 = host.ipv6_addresses or []
     return _tpl("host_detail.html", {
-        "request": request,
-        "host": host,
-        "ports": ports,
+        "request":       request,
+        "host":          host,
+        "ports":         ports,
         "flagged_ports": flagged_ports,
+        "global_v6":     [a for a in all_v6 if not a.startswith("fe80")],
+        "local_v6":      [a for a in all_v6 if a.startswith("fe80")],
     })
 
 

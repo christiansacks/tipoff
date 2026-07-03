@@ -345,6 +345,10 @@ details.wp-checklist[open] summary::before { transform: rotate(90deg); }
   background: rgba(168,85,247,.12); color: #c084fc;
   border-color: rgba(168,85,247,.25);
 }
+.host-tag-v6 {
+  background: rgba(20,184,166,.12); color: #2dd4bf;
+  border-color: rgba(20,184,166,.25);
+}
 .host-tag-remove {
   background: none; border: none; color: #818cf8; cursor: pointer;
   padding: 0; line-height: 1; font-size: 12px; opacity: 0.6;

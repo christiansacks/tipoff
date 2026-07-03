@@ -732,6 +732,66 @@
 {% endfor %}
 {% endif %}
 
+<!-- ══ NETWORK MAP ═════════════════════════════════════════════════ -->
+{% if gateway_host or gateway_ip or groups_by24 %}
+<div class="section-header" style="page-break-before: always;">
+  <h2>Network Map</h2>
+  <p>Discovered network topology grouped by /24 subnet. Gateway and infrastructure highlighted separately.</p>
+</div>
+
+{% if gateway_host or gateway_ip %}
+<div style="text-align:center;margin-bottom:16px">
+  <div style="display:inline-block;border:2px solid #6366f1;border-radius:8px;padding:10px 20px;background:#f5f3ff;min-width:180px">
+    <div style="font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#6366f1;font-weight:700;margin-bottom:3px">Default Gateway</div>
+    <div style="font-family:monospace;font-weight:700;font-size:13px">{{ gateway_host.ip if gateway_host else gateway_ip }}</div>
+    {% if gateway_host and gateway_host.hostname %}<div style="font-size:10px;color:#374151;margin-top:2px">{{ gateway_host.hostname }}</div>{% endif %}
+    {% if gateway_host and gateway_host.vendor and gateway_host.vendor != 'Unknown' %}<div style="font-size:9px;color:#9ca3af;margin-top:1px">{{ gateway_host.vendor }}</div>{% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% if infra_hosts %}
+<div style="text-align:center;margin-bottom:6px">
+  <span style="font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;font-weight:700">Infrastructure</span>
+</div>
+<div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:20px">
+  {% for host in infra_hosts %}
+  <div style="border:1px solid #d97706;border-radius:6px;padding:8px 12px;background:#fffbeb;min-width:120px;text-align:center">
+    <div style="font-family:monospace;font-weight:600;font-size:11px">{{ host.ip }}</div>
+    {% if host.hostname %}<div style="font-size:9px;color:#374151;margin-top:2px">{{ host.hostname }}</div>{% endif %}
+    {% if host.vendor and host.vendor != 'Unknown' %}<div style="font-size:9px;color:#9ca3af;margin-top:1px">{{ host.vendor[:30] }}</div>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if groups_by24 %}
+<div style="text-align:center;margin-bottom:10px">
+  <span style="font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;font-weight:700">Devices</span>
+</div>
+{% for subnet, subnet_hosts in groups_by24.items() %}
+<div style="margin-bottom:14px;page-break-inside:avoid">
+  <div style="display:inline-block;font-size:9px;font-family:monospace;color:#6b7280;background:#f9fafb;border:1px solid #e5e7eb;border-radius:3px;padding:2px 8px;margin-bottom:6px;font-weight:600">{{ subnet }}</div>
+  <div style="display:flex;flex-wrap:wrap;gap:5px">
+    {% for host in subnet_hosts %}
+    <div style="border:1px solid {{ '#fecaca' if host.flagged and not host.acknowledged else '#e5e7eb' }};border-radius:5px;padding:5px 8px;min-width:108px;background:{{ '#fff7f7' if host.flagged and not host.acknowledged else '#fafafa' if host.flagged else 'white' }};page-break-inside:avoid">
+      <div style="font-family:monospace;font-weight:600;font-size:10px;color:{{ '#dc2626' if host.flagged and not host.acknowledged else '#1f2937' }}">{{ host.ip }}</div>
+      {% if host.hostname %}<div style="font-size:9px;color:#4b5563;overflow:hidden;max-width:130px">{{ host.hostname[:22] if host.hostname|length > 22 else host.hostname }}</div>{% endif %}
+      <div style="margin-top:3px;display:flex;gap:2px;flex-wrap:wrap">
+        {% if host.is_vm %}<span style="font-size:8px;background:#f5f3ff;color:#7c3aed;border-radius:99px;padding:1px 5px;font-weight:700">VM</span>{% endif %}
+        {% if host.ipv6_addresses %}<span style="font-size:8px;background:#f0fdfa;color:#0d9488;border-radius:99px;padding:1px 5px;font-weight:700">v6</span>{% endif %}
+        {% for tag in (host.tags or []) %}<span style="font-size:8px;background:#eff6ff;color:#3b82f6;border-radius:99px;padding:1px 5px;font-weight:600">{{ tag }}</span>{% endfor %}
+        {% if host.flagged and host.acknowledged %}<span style="font-size:8px;background:#f3f4f6;color:#6b7280;border-radius:99px;padding:1px 5px">Ack'd</span>{% elif host.flagged %}<span style="font-size:8px;background:#fee2e2;color:#dc2626;border-radius:99px;padding:1px 5px;font-weight:700">!</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% endif %}
+
 <div class="report-footer">
   This report was generated automatically by TipOff. It reflects a point-in-time snapshot and should be reviewed alongside a qualified IT security professional.
 </div>

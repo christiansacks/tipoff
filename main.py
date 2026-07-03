@@ -2056,6 +2056,30 @@ async def download_pdf_report(request: Request, db: AsyncSession = Depends(get_d
                 "scan_results": h.wp_scan_results or {},
             })
 
+    # Topology data (reuse helpers already defined above)
+    pdf_gateway_ip   = _detect_gateway()
+    pdf_gateway_host = None
+    pdf_infra_hosts  = []
+    pdf_device_hosts = []
+    pdf_groups_by24  = {}
+    if pdf_gateway_ip:
+        for h in hosts:
+            if h.ip == pdf_gateway_ip:
+                pdf_gateway_host = h
+                break
+    for h in hosts:
+        if pdf_gateway_host and h.id == pdf_gateway_host.id:
+            continue
+        cls = _classify_host(h, pdf_gateway_ip)
+        if cls in ("gateway", "infrastructure"):
+            pdf_infra_hosts.append(h)
+        else:
+            pdf_device_hosts.append(h)
+    pdf_device_hosts.sort(key=lambda h: tuple(int(x) for x in h.ip.split(".")))
+    for h in pdf_device_hosts:
+        s = _slash24(h.ip)
+        pdf_groups_by24.setdefault(s, []).append(h)
+
     html_str = templates.env.get_template("pdf/report.html").render({
         "generated_at":     datetime.now(timezone.utc).strftime("%d %B %Y at %H:%M UTC"),
         "domains":          domain_data,
@@ -2072,6 +2096,10 @@ async def download_pdf_report(request: Request, db: AsyncSession = Depends(get_d
         "ce_scores":        ce_scores,
         "ce_areas":         CE_AREAS,
         "wp_sites":         wp_sites,
+        "gateway_host":     pdf_gateway_host,
+        "gateway_ip":       pdf_gateway_ip,
+        "infra_hosts":      pdf_infra_hosts,
+        "groups_by24":      pdf_groups_by24,
     })
 
     loop = asyncio.get_event_loop()

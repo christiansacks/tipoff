@@ -310,13 +310,13 @@
     if (e.detail.target && e.detail.target.id === 'host-area') {
       restoreSort();
       rebuildTagFilter();
-      applyTagFilter(_activeTag);
+      applyTagFilter();
     }
   });
   restoreSort();
 
   // ── Tag filter ─────────────────────────────────────────────────
-  let _activeTag = '';
+  let _activeTags = new Set();
 
   function collectTags() {
     const tags = new Set();
@@ -331,36 +331,44 @@
     const tags = collectTags();
     if (!bar) return;
     bar.style.display = tags.length ? '' : 'none';
-    // keep "All" button, rebuild rest
     bar.querySelectorAll('[data-tag]:not([data-tag=""])').forEach(b => b.remove());
     tags.forEach(tag => {
       const btn = document.createElement('button');
-      btn.className = 'tag-filter-btn' + (_activeTag === tag ? ' active' : '');
+      btn.className = 'tag-filter-btn' + (_activeTags.has(tag) ? ' active' : '');
       btn.dataset.tag = tag;
       btn.textContent = tag;
-      btn.onclick = () => setTagFilter(tag);
+      btn.onclick = () => toggleTagFilter(tag);
       bar.appendChild(btn);
     });
     const allBtn = bar.querySelector('[data-tag=""]');
     if (allBtn) {
-      allBtn.classList.toggle('active', _activeTag === '');
-      allBtn.onclick = () => setTagFilter('');
+      allBtn.classList.toggle('active', _activeTags.size === 0);
+      allBtn.onclick = () => clearTagFilter();
     }
   }
 
-  function applyTagFilter(tag) {
+  function applyTagFilter() {
     document.querySelectorAll('.host-card, .host-table-row').forEach(el => {
-      if (!tag) { el.style.display = ''; return; }
-      const tags = (el.dataset.hostTags || '').split(',');
-      el.style.display = tags.includes(tag) ? '' : 'none';
+      if (_activeTags.size === 0) { el.style.display = ''; return; }
+      const hostTags = (el.dataset.hostTags || '').split(',');
+      el.style.display = [..._activeTags].some(t => hostTags.includes(t)) ? '' : 'none';
     });
   }
 
-  function setTagFilter(tag) {
-    _activeTag = tag;
-    applyTagFilter(tag);
+  function toggleTagFilter(tag) {
+    if (_activeTags.has(tag)) { _activeTags.delete(tag); } else { _activeTags.add(tag); }
+    applyTagFilter();
     document.querySelectorAll('.tag-filter-btn').forEach(b => {
-      b.classList.toggle('active', b.dataset.tag === tag);
+      if (b.dataset.tag === '') b.classList.toggle('active', _activeTags.size === 0);
+      else b.classList.toggle('active', _activeTags.has(b.dataset.tag));
+    });
+  }
+
+  function clearTagFilter() {
+    _activeTags.clear();
+    applyTagFilter();
+    document.querySelectorAll('.tag-filter-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.tag === '');
     });
   }
 

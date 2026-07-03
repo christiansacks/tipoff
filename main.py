@@ -903,6 +903,64 @@ def _detect_cidr() -> str:
     return "192.168.1.0/24"
 
 
+# ── Topology helpers ───────────────────────────────────────────────────────────
+
+_INFRA_VENDORS = {
+    "cisco", "brocade", "tp-link", "ubiquiti", "netgear", "zyxel",
+    "mikrotik", "juniper", "d-link", "aruba", "unifi", "ruckus",
+    "extreme", "hewlett", "fortinet", "palo alto", "watchguard",
+    "sonicwall", "meraki", "cambium", "tenda", "mercusys", "comtrend",
+    "huawei", "technicolor", "sagemcom", "motorola", "arris", "asus",
+}
+_INFRA_HOSTNAMES = ("router", "switch", "ap", "gw", "gateway", "firewall", "fw", "sw", "rtr")
+
+
+def _detect_gateway() -> str | None:
+    """Read default gateway from /proc/net/route (little-endian hex)."""
+    try:
+        with open("/proc/net/route") as f:
+            next(f)
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 3 and parts[1] == "00000000":
+                    gw_bytes = bytes.fromhex(parts[2])
+                    return socket.inet_ntoa(bytes(reversed(gw_bytes)))
+    except Exception:
+        pass
+    return None
+
+
+def _classify_host(host, gateway_ip: str | None) -> str:
+    if gateway_ip and host.ip == gateway_ip:
+        return "gateway"
+    vendor_lower  = (host.vendor or "").lower()
+    hostname_lower = (host.hostname or "").lower()
+    last_octet = int(host.ip.split(".")[-1])
+    if (
+        any(v in vendor_lower for v in _INFRA_VENDORS) or
+        any(k in hostname_lower for k in _INFRA_HOSTNAMES) or
+        (last_octet in (1, 253, 254) and not host.is_vm)
+    ):
+        return "infrastructure"
+    return "device"
+
+
+def _slash24(ip: str) -> str:
+    p = ip.split(".")
+    return f"{p[0]}.{p[1]}.{p[2]}.0/24"
+
+
+def _containing_cidr(ip: str, cidrs: list[str]) -> str:
+    try:
+        addr = ipaddress.ip_address(ip)
+        for cidr in cidrs:
+            if addr in ipaddress.ip_network(cidr, strict=False):
+                return cidr
+    except Exception:
+        pass
+    return _slash24(ip)
+
+
 # ── Pages ──────────────────────────────────────────────────────────────────────
 
 @app.get("/logout")
@@ -2199,6 +2257,48 @@ async def _get_scan_evidence(db: AsyncSession) -> dict:
         for r in scans.scalars().all():
             evidence["ssl_issues"].append(f"{d.hostname} — {r.title}")
     return evidence
+
+
+@app.get("/topology", response_class=HTMLResponse)
+async def topology_page(request: Request, db: AsyncSession = Depends(get_db)):
+    from collections import defaultdict
+    hosts = (await db.execute(select(Host))).scalars().all()
+    gateway_ip = _detect_gateway()
+    cidrs = [c.strip() for c in _discovery_cidr.split(",") if c.strip()]
+
+    gateway_host = None
+    infra_hosts   = []
+    device_hosts  = []
+    for host in hosts:
+        cls = _classify_host(host, gateway_ip)
+        if cls == "gateway":
+            gateway_host = host
+        elif cls == "infrastructure":
+            infra_hosts.append(host)
+        else:
+            device_hosts.append(host)
+
+    def _sort_ip(h):
+        return [int(x) for x in h.ip.split(".")]
+
+    infra_hosts.sort(key=_sort_ip)
+    device_hosts.sort(key=_sort_ip)
+
+    groups_by24    = defaultdict(list)
+    groups_bycidr  = defaultdict(list)
+    for h in device_hosts:
+        groups_by24[_slash24(h.ip)].append(h)
+        groups_bycidr[_containing_cidr(h.ip, cidrs)].append(h)
+
+    return _tpl("topology.html", {
+        "request":       request,
+        "gateway_host":  gateway_host,
+        "gateway_ip":    gateway_ip,
+        "infra_hosts":   infra_hosts,
+        "device_hosts":  device_hosts,
+        "groups_by24":   dict(sorted(groups_by24.items())),
+        "groups_bycidr": dict(sorted(groups_bycidr.items())),
+    })
 
 
 @app.get("/ce", response_class=HTMLResponse)

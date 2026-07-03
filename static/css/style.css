@@ -1263,3 +1263,146 @@ details.wp-checklist[open] summary::before { transform: rotate(90deg); }
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 input[type=number] { -moz-appearance: textfield; }
+
+/* ── Topology / Network Map ────────────────────────────────────── */
+.topo-mode-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-left: auto;
+}
+.topo-mode-btn {
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--muted);
+  padding: 0.3rem 0.8rem;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.topo-mode-btn:last-child { border-right: none; }
+.topo-mode-btn:hover:not(.active) { color: var(--text); }
+.topo-mode-btn.active { background: var(--accent); color: #fff; }
+
+.topo-tree {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem 0 3rem;
+  gap: 0;
+  width: 100%;
+}
+
+/* Internet node */
+.topo-internet-node {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(99,102,241,.08);
+  border: 1px solid rgba(99,102,241,.25);
+  border-radius: 20px;
+  padding: 0.35rem 1.25rem;
+  font-size: 13px;
+  color: var(--muted);
+}
+.topo-internet-icon { font-size: 15px; }
+
+/* Vertical connector line */
+.topo-vline {
+  width: 2px;
+  height: 1.75rem;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+/* Section label (Infrastructure / Devices) */
+.topo-section-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+
+/* A horizontal row of nodes */
+.topo-tier {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+.topo-tier-multi {
+  position: relative;
+  padding-top: 0;
+}
+
+/* Base node card */
+.topo-node {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  min-width: 130px;
+  max-width: 175px;
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color 0.15s, transform 0.1s;
+  cursor: pointer;
+}
+.topo-node:hover { border-color: var(--accent); transform: translateY(-1px); }
+
+/* Node variants */
+.topo-gateway {
+  border-color: rgba(99,102,241,.5);
+  background: rgba(99,102,241,.06);
+  min-width: 180px;
+}
+.topo-gateway-unknown { cursor: default; }
+.topo-gateway-unknown:hover { transform: none; border-color: rgba(99,102,241,.5); }
+.topo-infra  { border-color: rgba(245,158,11,.35); background: rgba(245,158,11,.04); }
+.topo-flagged { border-color: var(--fail); }
+.topo-acked   { border-color: var(--muted); opacity: 0.8; }
+
+/* Node text */
+.topo-node-label  { font-size: 9px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.topo-node-ip     { font-family: monospace; font-size: 12px; font-weight: 600; }
+.topo-node-name   { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topo-node-vendor { font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topo-node-tags   { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 1px; }
+.topo-node-status { margin-top: 0.2rem; display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }
+
+/* Device groups */
+.topo-groups {
+  display: flex;
+  gap: 1.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  width: 100%;
+}
+.topo-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+.topo-group-label {
+  font-size: 10px;
+  font-family: monospace;
+  color: var(--muted);
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.15rem 0.6rem;
+}
+.topo-group-nodes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: center;
+}

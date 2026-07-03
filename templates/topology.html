@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header">
+  <h1>Network Map</h1>
+  <div class="topo-mode-toggle">
+    <button class="topo-mode-btn" data-mode="1" onclick="setTopoMode(1)" title="Split by /24 subnet">By /24</button>
+    <button class="topo-mode-btn" data-mode="2" onclick="setTopoMode(2)" title="Group by discovery network block">By network</button>
+    <button class="topo-mode-btn" data-mode="3" onclick="setTopoMode(3)" title="All hosts in one pool">Flat</button>
+  </div>
+</div>
+
+<div class="topo-tree">
+
+  <!-- ── Internet ── -->
+  <div class="topo-internet-node">
+    <span class="topo-internet-icon">🌐</span> Internet
+  </div>
+  <div class="topo-vline"></div>
+
+  <!-- ── Gateway ── -->
+  {% if gateway_host %}
+  <div class="topo-tier">
+    <a href="/host/{{ gateway_host.id }}" class="topo-node topo-gateway">
+      <div class="topo-node-label">Default Gateway</div>
+      <div class="topo-node-ip">{{ gateway_host.ip }}</div>
+      {% if gateway_host.hostname %}<div class="topo-node-name">{{ gateway_host.hostname }}</div>{% endif %}
+      {% if gateway_host.vendor and gateway_host.vendor != 'Unknown' %}<div class="topo-node-vendor">{{ gateway_host.vendor }}</div>{% endif %}
+      <div class="topo-node-status">
+        {% if gateway_host.host_online is not none %}
+          <span class="host-ping {{ 'host-ping-up' if gateway_host.host_online else 'host-ping-down' }}">
+            {{ '● Online' if gateway_host.host_online else '● Offline' }}
+          </span>
+        {% endif %}
+      </div>
+    </a>
+  </div>
+  {% elif gateway_ip %}
+  <div class="topo-tier">
+    <div class="topo-node topo-gateway topo-gateway-unknown">
+      <div class="topo-node-label">Default Gateway</div>
+      <div class="topo-node-ip">{{ gateway_ip }}</div>
+      <div class="topo-node-vendor" style="color:var(--muted)">Not in scan results</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ── Infrastructure ── -->
+  {% if infra_hosts %}
+  <div class="topo-vline"></div>
+  <div class="topo-section-label">Infrastructure</div>
+  <div class="topo-tier topo-tier-multi">
+    {% for host in infra_hosts %}
+    <a href="/host/{{ host.id }}" class="topo-node topo-infra {{ 'topo-flagged' if host.flagged and not host.acknowledged else 'topo-acked' if host.flagged and host.acknowledged else '' }}">
+      <div class="topo-node-ip">{{ host.ip }}</div>
+      {% if host.hostname %}<div class="topo-node-name">{{ host.hostname }}</div>{% endif %}
+      {% if host.vendor and host.vendor != 'Unknown' %}<div class="topo-node-vendor">{{ host.vendor }}</div>{% endif %}
+      <div class="topo-node-status">
+        {% if host.host_online is not none %}
+          <span class="host-ping {{ 'host-ping-up' if host.host_online else 'host-ping-down' }}">
+            {{ '● Online' if host.host_online else '● Offline' }}
+          </span>
+        {% endif %}
+        {% if host.flagged and host.acknowledged %}<span class="badge ack" style="font-size:10px">✓ Ack'd</span>
+        {% elif host.flagged %}<span class="badge fail" style="font-size:10px">Flagged</span>{% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- ── Devices ── -->
+  <div class="topo-vline"></div>
+  <div class="topo-section-label">Devices</div>
+
+  <!-- Mode 1: by /24 -->
+  <div class="topo-mode-view" id="topo-mode-1">
+    <div class="topo-groups">
+      {% for subnet, hosts in groups_by24.items() %}
+      <div class="topo-group">
+        <div class="topo-group-label">{{ subnet }}</div>
+        <div class="topo-group-nodes">
+          {% for host in hosts %}{% include "partials/topo_node.html" %}{% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Mode 2: by discovery CIDR -->
+  <div class="topo-mode-view" id="topo-mode-2" style="display:none">
+    <div class="topo-groups">
+      {% for cidr, hosts in groups_bycidr.items() %}
+      <div class="topo-group">
+        <div class="topo-group-label">{{ cidr }}</div>
+        <div class="topo-group-nodes">
+          {% for host in hosts %}{% include "partials/topo_node.html" %}{% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Mode 3: flat -->
+  <div class="topo-mode-view" id="topo-mode-3" style="display:none">
+    <div class="topo-groups">
+      <div class="topo-group">
+        <div class="topo-group-nodes">
+          {% for host in device_hosts %}{% include "partials/topo_node.html" %}{% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function setTopoMode(m) {
+  document.querySelectorAll('.topo-mode-view').forEach(function(el) {
+    el.style.display = el.id === 'topo-mode-' + m ? '' : 'none';
+  });
+  document.querySelectorAll('.topo-mode-btn').forEach(function(btn) {
+    btn.classList.toggle('active', parseInt(btn.dataset.mode) === m);
+  });
+  try { localStorage.setItem('topoMode', m); } catch(e) {}
+}
+var saved = parseInt(localStorage.getItem('topoMode') || '1');
+setTopoMode(saved);
+</script>
+
+{% endblock %}

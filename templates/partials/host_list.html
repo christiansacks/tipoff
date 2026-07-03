@@ -20,7 +20,7 @@
         data-vendor="{{ host.vendor or '' }}"
         data-status="{{ 'acknowledged' if host.flagged and host.acknowledged else 'flagged' if host.flagged else 'ok' }}"
         data-seen="{{ host.last_seen.strftime('%Y%m%d%H%M') }}"
-        data-host-tags="{{ (host.tags or []) | join(',') }}"
+        data-host-tags="{{ ((['VM'] if host.is_vm else []) + (['v6'] if host.ipv6_addresses else []) + (host.tags or [])) | join(',') }}"
         onclick="window.location='/host/{{ host.id }}'"
         style="cursor:pointer">
       <td class="mono">

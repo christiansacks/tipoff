@@ -316,6 +316,22 @@ details.wp-checklist[open] summary::before { transform: rotate(90deg); }
 
 .host-footer { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
 
+/* IPv6 addresses */
+.ipv6-addr {
+  display: block; font-size: 10px; font-family: monospace;
+  color: var(--muted); word-break: break-all;
+}
+.ipv6-addr-list {
+  font-size: 10px; font-family: monospace;
+  color: var(--muted); word-break: break-all; margin-top: 2px;
+}
+.ipv6-label {
+  display: inline-block; font-size: 9px; font-family: system-ui, sans-serif;
+  background: rgba(99,102,241,.12); color: #818cf8;
+  border-radius: 3px; padding: 0 3px; margin-right: 2px;
+  vertical-align: middle;
+}
+
 /* Host tags */
 .host-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; margin-bottom: 0.5rem; }
 .host-tag-chip {

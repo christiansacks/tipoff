@@ -1,4 +1,4 @@
-import asyncio, ipaddress, socket, struct
+import asyncio, ipaddress, socket, struct, subprocess, re
 import nmap
 import manuf as manuf_lib
 import dns.message
@@ -302,3 +302,83 @@ async def discover_network(cidr: str, progress: dict | None = None) -> list[dict
             return result
 
     return await asyncio.gather(*[_scan(ip) for ip in live_ips])
+
+
+def _ipv6_interfaces() -> list[str]:
+    """Return LAN interface names that have an IPv6 address (excludes loopback)."""
+    ifaces = []
+    try:
+        out = subprocess.run(["ip", "-6", "addr", "show"], capture_output=True, text=True, timeout=5).stdout
+        current = None
+        for line in out.splitlines():
+            m = re.match(r"^\d+:\s+(\S+?)[@:]", line)
+            if m:
+                current = m.group(1)
+                continue
+            if current and current != "lo" and "inet6" in line and current not in ifaces:
+                ifaces.append(current)
+    except Exception:
+        pass
+    return ifaces
+
+
+async def discover_ipv6_neighbors() -> list[dict]:
+    """
+    Discover IPv6 hosts on the local network:
+    1. Ping ff02::1 (all-nodes multicast) on each IPv6 interface to wake the NDP cache.
+    2. Read the kernel NDP neighbor table (ip -6 neigh show).
+    Returns list of {ipv6, mac, link_local} dicts; skips FAILED/INCOMPLETE entries.
+    """
+    ifaces = _ipv6_interfaces()
+    if not ifaces:
+        return []
+
+    loop = asyncio.get_event_loop()
+
+    async def _ping_multicast(iface: str):
+        try:
+            await loop.run_in_executor(
+                None,
+                lambda: subprocess.run(
+                    ["ping", "-6", "-c", "3", "-W", "1", f"ff02::1%{iface}"],
+                    capture_output=True, timeout=10,
+                ),
+            )
+        except Exception:
+            pass
+
+    await asyncio.gather(*[_ping_multicast(i) for i in ifaces])
+    await asyncio.sleep(1.0)
+
+    neighbors = []
+    try:
+        out = subprocess.run(
+            ["ip", "-6", "neigh", "show"], capture_output=True, text=True, timeout=5
+        ).stdout
+        for line in out.splitlines():
+            parts = line.split()
+            # format: <addr> dev <iface> lladdr <mac> <STATE>
+            if "lladdr" not in parts:
+                continue
+            idx  = parts.index("lladdr")
+            ipv6 = parts[0]
+            mac  = parts[idx + 1]
+            state = parts[-1] if len(parts) > idx + 2 else ""
+            if state in ("FAILED", "INCOMPLETE"):
+                continue
+            # skip multicast/loopback addresses
+            try:
+                addr = ipaddress.ip_address(ipv6)
+                if addr.is_multicast or addr.is_loopback:
+                    continue
+            except ValueError:
+                continue
+            neighbors.append({
+                "ipv6":       ipv6,
+                "mac":        mac,
+                "link_local": ipv6.startswith("fe80"),
+            })
+    except Exception:
+        pass
+
+    return neighbors

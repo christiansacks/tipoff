@@ -23,7 +23,14 @@
         data-host-tags="{{ (host.tags or []) | join(',') }}"
         onclick="window.location='/host/{{ host.id }}'"
         style="cursor:pointer">
-      <td class="mono">{{ host.ip }}</td>
+      <td class="mono">
+        {{ host.ip }}
+        {% for addr in (host.ipv6_addresses or []) %}
+          <div class="ipv6-addr-list" title="{{ addr }}">
+            <span class="ipv6-label">v6</span> {{ addr }}
+          </div>
+        {% endfor %}
+      </td>
       <td>{{ host.hostname or '—' }}</td>
       <td>{{ host.vendor if host.vendor and host.vendor != 'Unknown' else '—' }}</td>
       <td>

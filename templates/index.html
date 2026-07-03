@@ -71,6 +71,9 @@
           <input type="text" name="hostname" placeholder="example.com" required>
           <button type="submit">Add Domain</button>
         </form>
+        <button class="btn-secondary"
+                hx-post="/domains/rescan-all"
+                hx-target="#toast-container">Rescan All</button>
       </div>
       {% endif %}
       <div id="domain-list"

@@ -56,7 +56,7 @@ def _check_auth(request: Request) -> bool:
         and verify_password(password, _auth["password_hash"])
     )
 
-from discovery.lan import discover_network, rescan_host as _rescan_host
+from discovery.lan import discover_network, rescan_host as _rescan_host, discover_ipv6_neighbors
 from discovery.port_info import PORT_INFO
 from discovery.port_info import enrich_ports
 from license import verify_license_key, LicenseInfo, LicenseStatus
@@ -1465,6 +1465,23 @@ async def rescan_domain(
     return HTMLResponse('<div class="toast">Rescan started...</div>')
 
 
+@app.post("/domains/rescan-all", response_class=HTMLResponse)
+async def rescan_all_domains(
+    request: Request,
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    db: AsyncSession = Depends(get_db),
+):
+    result  = await db.execute(select(Domain))
+    domains = result.scalars().all()
+    for domain in domains:
+        background_tasks.add_task(_scan_and_store, domain.hostname)
+    n = len(domains)
+    return HTMLResponse(
+        f'<div class="toast">Rescanning {n} domain{"s" if n != 1 else ""}…</div>',
+        headers={"HX-Trigger": "domainAdded"},
+    )
+
+
 # ── Settings ───────────────────────────────────────────────────────────────────
 
 @app.get("/settings", response_class=HTMLResponse)
@@ -2076,6 +2093,26 @@ async def _run_discovery_job(job_id: str, cidr: str):
                 })
         if port_changes:
             await _send_port_change_alert(port_changes)
+
+        # IPv6 neighbor discovery — match by MAC to enrich existing hosts
+        job["stage"] = "Discovering IPv6 neighbors…"
+        try:
+            ipv6_neighbors = await discover_ipv6_neighbors()
+            if ipv6_neighbors:
+                async with SessionLocal() as db:
+                    all_hosts = (await db.execute(select(Host))).scalars().all()
+                    mac_to_host = {h.mac.lower(): h for h in all_hosts if h.mac}
+                    for neighbor in ipv6_neighbors:
+                        host_row = mac_to_host.get(neighbor["mac"].lower())
+                        if host_row:
+                            addrs = list(host_row.ipv6_addresses or [])
+                            if neighbor["ipv6"] not in addrs:
+                                addrs.append(neighbor["ipv6"])
+                                host_row.ipv6_addresses = addrs
+                    await db.commit()
+        except Exception as e:
+            print(f"IPv6 discovery warning: {e}")
+
         job["status"] = "done"
         await _check_and_send_alerts()
     except Exception as e:

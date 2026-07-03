@@ -59,6 +59,7 @@ class Host(Base):
     last_ping_at     = Column(DateTime, nullable=True)
     is_vm            = Column(Boolean, default=False)
     tags             = Column(JSON, default=list)
+    ipv6_addresses   = Column(JSON, default=list)  # list of IPv6 address strings
 
 
 class ScanResult(Base):
@@ -195,6 +196,7 @@ async def init_db():
             "ALTER TABLE monitored_emails ADD COLUMN lc_ack_note TEXT",
             "ALTER TABLE hosts ADD COLUMN is_vm BOOLEAN DEFAULT FALSE",
             "ALTER TABLE hosts ADD COLUMN tags TEXT DEFAULT '[]'",
+            "ALTER TABLE hosts ADD COLUMN ipv6_addresses TEXT DEFAULT '[]'",
         ]:
             try:
                 await conn.execute(text(sql))

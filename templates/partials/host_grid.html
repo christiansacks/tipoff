@@ -29,6 +29,11 @@
       {% if host.vendor and host.vendor != "Unknown" %}<span>{{ host.vendor }}</span>{% endif %}
       {% if host.os_guess and host.os_guess != "Unknown" %}<span>{{ host.os_guess }}</span>{% endif %}
       {% if host.mac %}<span class="mac">{{ host.mac }}</span>{% endif %}
+      {% for addr in (host.ipv6_addresses or []) %}
+        <span class="ipv6-addr" title="{{ addr }}">
+          <span class="ipv6-label">IPv6</span> {{ addr }}
+        </span>
+      {% endfor %}
     </div>
     {% if host.open_ports %}
     <div class="port-list">

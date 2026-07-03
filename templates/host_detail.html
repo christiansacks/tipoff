@@ -4,6 +4,7 @@
 <div class="page-header">
   <a href="/" class="back">← Dashboard</a>
   <h1>{{ host.ip }}</h1>
+  {% if host.is_vm %}<span class="host-tag-chip host-tag-auto" style="font-size:12px">VM</span>{% endif %}
   {% if host.flagged and host.acknowledged %}
     <span class="badge ack">✓ Acknowledged</span>
   {% elif host.flagged %}
@@ -25,6 +26,26 @@
 <!-- ── Basic info ────────────────────────────────────────────────── -->
 <section class="card">
   <div class="host-info-grid">
+    <div class="info-row">
+      <span class="info-label">IPv4</span>
+      <span class="info-value mono">{{ host.ip }}</span>
+    </div>
+    {% if host.ipv6_addresses %}
+    {% set global_v6 = host.ipv6_addresses | reject('startswith', 'fe80') | list %}
+    {% set local_v6  = host.ipv6_addresses | select('startswith', 'fe80') | list %}
+    {% if global_v6 %}
+    <div class="info-row">
+      <span class="info-label">IPv6</span>
+      <span class="info-value mono">{% for a in global_v6 %}{{ a }}{% if not loop.last %}<br>{% endif %}{% endfor %}</span>
+    </div>
+    {% endif %}
+    {% if local_v6 %}
+    <div class="info-row">
+      <span class="info-label">IPv6 link-local</span>
+      <span class="info-value mono" style="color:var(--muted)">{% for a in local_v6 %}{{ a }}{% if not loop.last %}<br>{% endif %}{% endfor %}</span>
+    </div>
+    {% endif %}
+    {% endif %}
     {% if host.hostname %}
     <div class="info-row">
       <span class="info-label">Hostname</span>
@@ -49,13 +70,30 @@
       <span class="info-value">{{ host.os_guess }}</span>
     </div>
     {% endif %}
+    {% set all_tags = ((['VM'] if host.is_vm else []) + (host.tags or [])) %}
+    {% if all_tags %}
     <div class="info-row">
-      <span class="info-label">Agent</span>
-      <span class="info-value">{{ "Installed" if host.agent_installed else "Not installed" }}</span>
+      <span class="info-label">Tags</span>
+      <span class="info-value">
+        {% for tag in all_tags %}
+          <span class="host-tag-chip {{ 'host-tag-auto' if tag == 'VM' else '' }}">{{ tag }}</span>
+        {% endfor %}
+      </span>
     </div>
+    {% endif %}
+    {% if host.first_seen %}
+    <div class="info-row">
+      <span class="info-label">First seen</span>
+      <span class="info-value">{{ host.first_seen.strftime("%d %b %Y %H:%M") }}</span>
+    </div>
+    {% endif %}
     <div class="info-row">
       <span class="info-label">Last seen</span>
       <span class="info-value">{{ host.last_seen.strftime("%d %b %Y %H:%M") }}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Agent</span>
+      <span class="info-value">{{ "Installed" if host.agent_installed else "Not installed" }}</span>
     </div>
   </div>
 </section>

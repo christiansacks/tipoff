@@ -25,7 +25,7 @@
         style="cursor:pointer">
       <td class="mono">
         {{ host.ip }}
-        {% for addr in (host.ipv6_addresses or []) %}
+        {% for addr in (host.ipv6_addresses or []) if not addr.startswith('fe80') %}
           <div class="ipv6-addr-list" title="{{ addr }}">
             <span class="ipv6-label">v6</span> {{ addr }}
           </div>

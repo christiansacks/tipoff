@@ -304,10 +304,14 @@ async def discover_network(cidr: str, progress: dict | None = None) -> list[dict
     return await asyncio.gather(*[_scan(ip) for ip in live_ips])
 
 
+# Prefixes of virtual/tunnel interfaces to skip for IPv6 multicast ping
+_SKIP_IFACE_PREFIXES = ("lo", "docker", "br-", "veth", "tun", "tap", "zt", "virbr", "vmnet", "vnet", "wg")
+
+
 def _ipv6_interfaces() -> list[str]:
-    """Return LAN interface names that have an IPv6 address (excludes loopback)."""
+    """Return physical/VM LAN interface names that have an IPv6 address."""
     ifaces = []
-    # Primary: read /proc/net/if_inet6 (always available, no iproute2 needed)
+    # Read /proc/net/if_inet6 — always available, no iproute2 needed
     # Format: addr iface_idx prefix_len scope flags ifname
     try:
         with open("/proc/net/if_inet6") as f:
@@ -315,7 +319,9 @@ def _ipv6_interfaces() -> list[str]:
                 parts = line.split()
                 if len(parts) >= 6:
                     iface = parts[5]
-                    if iface != "lo" and iface not in ifaces:
+                    if any(iface.startswith(p) for p in _SKIP_IFACE_PREFIXES):
+                        continue
+                    if iface not in ifaces:
                         ifaces.append(iface)
     except Exception:
         pass
@@ -330,7 +336,7 @@ def _ipv6_interfaces() -> list[str]:
             if m:
                 current = m.group(1)
                 continue
-            if current and current != "lo" and "inet6" in line and current not in ifaces:
+            if current and not any(current.startswith(p) for p in _SKIP_IFACE_PREFIXES) and current not in ifaces and "inet6" in line:
                 ifaces.append(current)
     except Exception:
         pass
@@ -354,9 +360,9 @@ async def discover_ipv6_neighbors() -> list[dict]:
         try:
             await loop.run_in_executor(
                 None,
-                lambda: subprocess.run(
-                    ["ping", "-6", "-c", "3", "-W", "1", f"ff02::1%{iface}"],
-                    capture_output=True, timeout=10,
+                lambda i=iface: subprocess.run(
+                    ["ping", "-6", "-c", "2", "-W", "1", f"ff02::1%{i}"],
+                    capture_output=True, timeout=5,
                 ),
             )
         except Exception:

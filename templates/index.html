@@ -351,7 +351,7 @@
     document.querySelectorAll('.host-card, .host-table-row').forEach(el => {
       if (_activeTags.size === 0) { el.style.display = ''; return; }
       const hostTags = (el.dataset.hostTags || '').split(',');
-      el.style.display = [..._activeTags].some(t => hostTags.includes(t)) ? '' : 'none';
+      el.style.display = [..._activeTags].every(t => hostTags.includes(t)) ? '' : 'none';
     });
   }
 

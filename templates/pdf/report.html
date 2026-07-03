@@ -385,8 +385,76 @@
   </div>
 </div>
 
+<!-- ══ TABLE OF CONTENTS ═══════════════════════════════════════════ -->
+<div style="page-break-after:always;padding:40px 0 20px 0">
+  <div style="font-size:15px;font-weight:700;color:#1f2937;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Contents</div>
+  <div style="width:40px;height:3px;background:#6366f1;margin-bottom:24px"></div>
+  <table style="width:100%;border-collapse:collapse">
+    <tr>
+      <td style="padding:7px 0;border-bottom:1px dotted #e5e7eb">
+        <a href="#section-domains" style="color:#6366f1;text-decoration:none;font-size:11px;font-weight:600">Domain Security Checks</a>
+      </td>
+      <td style="padding:7px 0;border-bottom:1px dotted #e5e7eb;text-align:right;font-size:10px;color:#9ca3af">{{ domains|length }} domain{{ 's' if domains|length != 1 else '' }}</td>
+    </tr>
+    <tr>
+      <td style="padding:7px 0;border-bottom:1px dotted #e5e7eb">
+        <a href="#section-hosts" style="color:#6366f1;text-decoration:none;font-size:11px;font-weight:600">LAN Host Inventory</a>
+      </td>
+      <td style="padding:7px 0;border-bottom:1px dotted #e5e7eb;text-align:right;font-size:10px;color:#9ca3af">{{ hosts|length }} host{{ 's' if hosts|length != 1 else '' }}</td>
+    </tr>
+    {% if flagged_count > 0 %}
+    <tr>
+      <td style="padding:7px 0;border-bottom:1px dotted #e5e7eb">
+        <a href="#section-concerns" style="color:#dc2626;text-decoration:none;font-size:11px;font-weight:600">Security Concerns Detail</a>
+      </td>
+      <td style="padding:7px 0;border-bottom:1px dotted #e5e7eb;text-align:right;font-size:10px;color:#dc2626">{{ flagged_count }} flagged</td>
+    </tr>
+    {% endif %}
+    {% if monitors %}
+    <tr>
+      <td style="padding:7px 0;border-bottom:1px dotted #e5e7eb">
+        <a href="#section-monitors" style="color:#6366f1;text-decoration:none;font-size:11px;font-weight:600">Uptime Monitors</a>
+      </td>
+      <td style="padding:7px 0;border-bottom:1px dotted #e5e7eb;text-align:right;font-size:10px;color:#9ca3af">{{ monitors|length }} monitor{{ 's' if monitors|length != 1 else '' }}</td>
+    </tr>
+    {% endif %}
+    {% if wp_sites %}
+    <tr>
+      <td style="padding:7px 0;border-bottom:1px dotted #e5e7eb">
+        <a href="#section-wordpress" style="color:#6366f1;text-decoration:none;font-size:11px;font-weight:600">WordPress Security</a>
+      </td>
+      <td style="padding:7px 0;border-bottom:1px dotted #e5e7eb;text-align:right;font-size:10px;color:#9ca3af">{{ wp_sites|length }} site{{ 's' if wp_sites|length != 1 else '' }}</td>
+    </tr>
+    {% endif %}
+    {% if monitored_emails %}
+    <tr>
+      <td style="padding:7px 0;border-bottom:1px dotted #e5e7eb">
+        <a href="#section-breach" style="color:#6366f1;text-decoration:none;font-size:11px;font-weight:600">Breach Monitoring</a>
+      </td>
+      <td style="padding:7px 0;border-bottom:1px dotted #e5e7eb;text-align:right;font-size:10px;color:{{ '#dc2626' if emails_breached > 0 else '#9ca3af' }}">{{ monitored_emails|length }} email{{ 's' if monitored_emails|length != 1 else '' }}{% if emails_breached > 0 %}, {{ emails_breached }} breached{% endif %}</td>
+    </tr>
+    {% endif %}
+    {% if ce_scores %}
+    <tr>
+      <td style="padding:7px 0;border-bottom:1px dotted #e5e7eb">
+        <a href="#section-ce" style="color:#6366f1;text-decoration:none;font-size:11px;font-weight:600">Cyber Essentials Readiness</a>
+      </td>
+      <td style="padding:7px 0;border-bottom:1px dotted #e5e7eb;text-align:right;font-size:10px;color:{{ '#16a34a' if ce_scores.ready else '#d97706' if ce_scores.pct >= 50 else '#dc2626' }}">{{ ce_scores.pct }}% ready</td>
+    </tr>
+    {% endif %}
+    {% if gateway_host or gateway_ip or groups_by24 %}
+    <tr>
+      <td style="padding:7px 0">
+        <a href="#section-netmap" style="color:#6366f1;text-decoration:none;font-size:11px;font-weight:600">Network Map</a>
+      </td>
+      <td style="padding:7px 0;text-align:right;font-size:10px;color:#9ca3af">{{ hosts|length }} host{{ 's' if hosts|length != 1 else '' }}</td>
+    </tr>
+    {% endif %}
+  </table>
+</div>
+
 <!-- ══ DOMAIN SECURITY CHECKS ═════════════════════════════════════ -->
-<div class="section-header">
+<div class="section-header" id="section-domains">
   <h2>Domain Security Checks</h2>
   <p>External checks covering SSL certificates, DNS email security (SPF/DMARC/DKIM), and HTTP security headers.</p>
 </div>
@@ -426,7 +494,7 @@
 {% endfor %}
 
 <!-- ══ LAN HOST INVENTORY ══════════════════════════════════════════ -->
-<div class="section-header" style="page-break-before: always;">
+<div class="section-header" id="section-hosts" style="page-break-before: always;">
   <h2>LAN Host Inventory</h2>
   <p>{{ hosts|length }} host{{ 's' if hosts|length != 1 else '' }} discovered.
   {% if flagged_count > 0 %}{{ flagged_count }} flagged{% if acked_count > 0 %}, {{ acked_count }} acknowledged{% endif %}.{% endif %}</p>
@@ -476,7 +544,7 @@
 <!-- ══ SECURITY CONCERNS DETAIL ═══════════════════════════════════ -->
 {% set flagged_hosts = hosts | selectattr('flagged') | list %}
 {% if flagged_hosts %}
-<div class="section-header">
+<div class="section-header" id="section-concerns">
   <h2>Security Concerns Detail</h2>
   <p>Detailed breakdown of flagged hosts and recommended remediation steps.</p>
 </div>
@@ -516,7 +584,7 @@
 
 <!-- ══ UPTIME MONITORS ════════════════════════════════════════════ -->
 {% if monitors %}
-<div class="section-header" style="page-break-before: always;">
+<div class="section-header" id="section-monitors" style="page-break-before: always;">
   <h2>Uptime Monitors</h2>
   <p>{{ monitors|length }} monitor{{ 's' if monitors|length != 1 else '' }} active.
   {% if monitors_up < monitors|length %}{{ monitors|length - monitors_up }} currently down.{% else %}All responding.{% endif %}</p>
@@ -558,7 +626,7 @@
 
 <!-- ══ WORDPRESS SECURITY ════════════════════════════════════════ -->
 {% if wp_sites %}
-<div class="section-header" {% if not monitors %}style="page-break-before: always;"{% endif %}>
+<div class="section-header" id="section-wordpress" {% if not monitors %}style="page-break-before: always;"{% endif %}>
   <h2>WordPress Security</h2>
   <p>{{ wp_sites|length }} WordPress installation{{ 's' if wp_sites|length != 1 else '' }} detected.</p>
 </div>
@@ -655,7 +723,7 @@
 
 <!-- ══ BREACH MONITORING ══════════════════════════════════════════ -->
 {% if monitored_emails %}
-<div class="section-header" {% if not monitors and not wp_sites %}style="page-break-before: always;"{% endif %}>
+<div class="section-header" id="section-breach" {% if not monitors and not wp_sites %}style="page-break-before: always;"{% endif %}>
   <h2>Breach Monitoring</h2>
   <p>{{ monitored_emails|length }} email address{{ 'es' if monitored_emails|length != 1 else '' }} monitored via Have I Been Pwned.
   {% if emails_breached > 0 %}{{ emails_breached }} found in known data breaches.{% else %}No breaches detected.{% endif %}</p>
@@ -697,7 +765,7 @@
 
 <!-- ══ CYBER ESSENTIALS READINESS ═════════════════════════════════ -->
 {% if ce_scores %}
-<div class="section-header" style="page-break-before: always;">
+<div class="section-header" id="section-ce" style="page-break-before: always;">
   <h2>Cyber Essentials Readiness</h2>
   <p>Self-assessed readiness across the 5 CE control areas. {{ ce_scores.passed }}/{{ ce_scores.total }} questions answered positively.
   Note: TipOff is not an accredited Certification Body. This assessment carries no legal standing.</p>
@@ -734,7 +802,7 @@
 
 <!-- ══ NETWORK MAP ═════════════════════════════════════════════════ -->
 {% if gateway_host or gateway_ip or groups_by24 %}
-<div class="section-header" style="page-break-before: always;">
+<div class="section-header" id="section-netmap" style="page-break-before: always;">
   <h2>Network Map</h2>
   <p>Discovered network topology grouped by /24 subnet. Gateway and infrastructure highlighted separately.</p>
 </div>

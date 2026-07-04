@@ -19,29 +19,33 @@
   <div class="topo-vline"></div>
 
   <!-- ── Gateway ── -->
-  {% if gateway_host %}
-  <div class="topo-tier">
-    <a href="/host/{{ gateway_host.id }}" class="topo-node topo-gateway">
-      <div class="topo-node-label">Default Gateway</div>
-      <div class="topo-node-ip">{{ gateway_host.ip }}</div>
-      {% if gateway_host.hostname %}<div class="topo-node-name">{{ gateway_host.hostname }}</div>{% endif %}
-      {% if gateway_host.vendor and gateway_host.vendor != 'Unknown' %}<div class="topo-node-vendor">{{ gateway_host.vendor }}</div>{% endif %}
+  {% if gateway_hosts %}
+  <div class="topo-tier topo-tier-multi">
+    {% for gw in gateway_hosts %}
+    <a href="/host/{{ gw.id }}" class="topo-node topo-gateway">
+      <div class="topo-node-label">Gateway</div>
+      <div class="topo-node-ip">{{ gw.ip }}</div>
+      {% if gw.hostname %}<div class="topo-node-name">{{ gw.hostname }}</div>{% endif %}
+      {% if gw.vendor and gw.vendor != 'Unknown' %}<div class="topo-node-vendor">{{ gw.vendor }}</div>{% endif %}
       <div class="topo-node-status">
-        {% if gateway_host.host_online is not none %}
-          <span class="host-ping {{ 'host-ping-up' if gateway_host.host_online else 'host-ping-down' }}">
-            {{ '● Online' if gateway_host.host_online else '● Offline' }}
+        {% if gw.host_online is not none %}
+          <span class="host-ping {{ 'host-ping-up' if gw.host_online else 'host-ping-down' }}">
+            {{ '● Online' if gw.host_online else '● Offline' }}
           </span>
         {% endif %}
       </div>
     </a>
+    {% endfor %}
   </div>
-  {% elif gateway_ip %}
-  <div class="topo-tier">
+  {% elif gateway_ips %}
+  <div class="topo-tier topo-tier-multi">
+    {% for ip in gateway_ips | sort %}
     <div class="topo-node topo-gateway topo-gateway-unknown">
-      <div class="topo-node-label">Default Gateway</div>
-      <div class="topo-node-ip">{{ gateway_ip }}</div>
+      <div class="topo-node-label">Gateway</div>
+      <div class="topo-node-ip">{{ ip }}</div>
       <div class="topo-node-vendor" style="color:var(--muted)">Not in scan results</div>
     </div>
+    {% endfor %}
   </div>
   {% endif %}
 

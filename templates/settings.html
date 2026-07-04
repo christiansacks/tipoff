@@ -57,6 +57,33 @@
 
       <hr style="border-color:var(--border)">
 
+      <!-- Custom VM MAC OUI Prefixes -->
+      <div id="custom-oui-settings">
+        <div class="card-header">
+          <h2>Custom VM MAC Prefixes</h2>
+        </div>
+        <p class="muted" style="margin:0 0 1.25rem">
+          MAC OUI prefixes (first 3 octets) to treat as virtual machines, in addition to the built-in list.
+          Useful for hypervisors not covered automatically, such as ESXi hosts with non-standard MACs.
+          Format: <code>BC:24:11</code> — separate multiple entries with commas.
+        </p>
+        <form hx-post="/settings/custom-oui"
+              hx-target="#toast-container"
+              class="settings-form">
+          <div class="field">
+            <label>OUI Prefixes <span class="muted">(comma-separated)</span></label>
+            <input type="text" name="custom_vm_ouis" value="{{ custom_vm_ouis }}"
+                   placeholder="BC:24:11, 00:50:BA" style="max-width:400px">
+            <div class="field-hint">
+              Example Proxmox OUI: <code>BC:24:11</code>. Changes take effect on the next LAN scan.
+            </div>
+          </div>
+          <button type="submit">Save</button>
+        </form>
+      </div>
+
+      <hr style="border-color:var(--border)">
+
       <!-- LAN Auto-Discovery -->
       <div id="discovery">
         <div class="card-header">

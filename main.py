@@ -202,6 +202,21 @@ async def _load_hibp_settings():
             _hibp_api_key = row.value
 
 
+_custom_vm_ouis: str = ""
+
+
+async def _load_custom_oui_settings():
+    global _custom_vm_ouis
+    from db.database import SessionLocal
+    from discovery.lan import set_custom_vm_ouis
+    async with SessionLocal() as db:
+        r = await db.execute(select(Setting).where(Setting.key == "custom_vm_ouis"))
+        row = r.scalar_one_or_none()
+        _custom_vm_ouis = row.value if row and row.value else ""
+    ouis = {o.strip().lower() for o in _custom_vm_ouis.split(",") if o.strip()}
+    set_custom_vm_ouis(ouis)
+
+
 async def _run_breach_checks():
     """Check all monitored emails against HIBP and LeakCheck."""
     import asyncio as _asyncio
@@ -806,6 +821,7 @@ async def lifespan(app: FastAPI):
     await _load_readonly_settings()
     await _load_hibp_settings()
     await _load_wpscan_settings()
+    await _load_custom_oui_settings()
     scheduler.add_job(run_due_scans, "interval", hours=1, id="domain_scanner")
     scheduler.add_job(_run_uptime_checks, "interval", minutes=5, id="uptime_checks")
     scheduler.add_job(_send_domain_expiry_alerts, "cron", hour=9, minute=0, id="expiry_alerts", misfire_grace_time=3600)
@@ -910,7 +926,7 @@ _INFRA_VENDORS = {
     "mikrotik", "juniper", "d-link", "aruba", "unifi", "ruckus",
     "extreme", "hewlett", "fortinet", "palo alto", "watchguard",
     "sonicwall", "meraki", "cambium", "tenda", "mercusys", "comtrend",
-    "huawei", "technicolor", "sagemcom", "motorola", "arris", "asus",
+    "huawei", "technicolor", "sagemcom", "motorola", "arris",
 }
 _INFRA_HOSTNAMES = ("router", "switch", "ap", "gw", "gateway", "firewall", "fw", "sw", "rtr")
 
@@ -930,16 +946,30 @@ def _detect_gateway() -> str | None:
     return None
 
 
-def _classify_host(host, gateway_ip: str | None) -> str:
-    if gateway_ip and host.ip == gateway_ip:
+def _detect_gateways() -> set[str]:
+    """Read all non-zero gateway IPs from /proc/net/route."""
+    gateways: set[str] = set()
+    try:
+        with open("/proc/net/route") as f:
+            next(f)
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 3 and parts[2] != "00000000":
+                    gw_bytes = bytes.fromhex(parts[2])
+                    gateways.add(socket.inet_ntoa(bytes(reversed(gw_bytes))))
+    except Exception:
+        pass
+    return gateways
+
+
+def _classify_host(host, gateway_ips: set[str]) -> str:
+    if host.ip in gateway_ips:
         return "gateway"
-    vendor_lower  = (host.vendor or "").lower()
+    vendor_lower   = (host.vendor or "").lower()
     hostname_lower = (host.hostname or "").lower()
-    last_octet = int(host.ip.split(".")[-1])
     if (
         any(v in vendor_lower for v in _INFRA_VENDORS) or
-        any(k in hostname_lower for k in _INFRA_HOSTNAMES) or
-        (last_octet in (1, 253, 254) and not host.is_vm)
+        any(k in hostname_lower for k in _INFRA_HOSTNAMES)
     ):
         return "infrastructure"
     return "device"
@@ -1576,6 +1606,7 @@ async def settings_page(request: Request):
         "hibp_api_key_set":    bool(_hibp_api_key),
         "wpscan_api_key_set":  bool(_wpscan_api_key),
         "dns_servers":         _dns_servers,
+        "custom_vm_ouis":      _custom_vm_ouis,
     })
 
 
@@ -1954,6 +1985,17 @@ async def save_wpscan_settings(wpscan_api_key: str = Form(default="")):
     return HTMLResponse('<div class="toast">WPScan settings saved.</div>')
 
 
+@app.post("/settings/custom-oui", response_class=HTMLResponse)
+async def save_custom_oui_settings(custom_vm_ouis: str = Form(default="")):
+    global _custom_vm_ouis
+    from discovery.lan import set_custom_vm_ouis
+    _custom_vm_ouis = custom_vm_ouis.strip()
+    asyncio.create_task(_save_setting("custom_vm_ouis", _custom_vm_ouis))
+    ouis = {o.strip().lower() for o in _custom_vm_ouis.split(",") if o.strip()}
+    set_custom_vm_ouis(ouis)
+    return HTMLResponse('<div class="toast">Custom VM OUI prefixes saved.</div>')
+
+
 # ── PDF Report ────────────────────────────────────────────────────────────────
 
 @app.get("/report/pdf")
@@ -2058,6 +2100,7 @@ async def download_pdf_report(request: Request, db: AsyncSession = Depends(get_d
 
     # Topology data (reuse helpers already defined above)
     pdf_gateway_ip   = _detect_gateway()
+    pdf_gateway_ips  = _detect_gateways()
     pdf_gateway_host = None
     pdf_infra_hosts  = []
     pdf_device_hosts = []
@@ -2070,7 +2113,7 @@ async def download_pdf_report(request: Request, db: AsyncSession = Depends(get_d
     for h in hosts:
         if pdf_gateway_host and h.id == pdf_gateway_host.id:
             continue
-        cls = _classify_host(h, pdf_gateway_ip)
+        cls = _classify_host(h, pdf_gateway_ips)
         if cls in ("gateway", "infrastructure"):
             pdf_infra_hosts.append(h)
         else:
@@ -2290,17 +2333,17 @@ async def _get_scan_evidence(db: AsyncSession) -> dict:
 @app.get("/topology", response_class=HTMLResponse)
 async def topology_page(request: Request, db: AsyncSession = Depends(get_db)):
     from collections import defaultdict
-    hosts = (await db.execute(select(Host))).scalars().all()
-    gateway_ip = _detect_gateway()
-    cidrs = [c.strip() for c in _discovery_cidr.split(",") if c.strip()]
+    hosts       = (await db.execute(select(Host))).scalars().all()
+    gateway_ips = _detect_gateways()
+    cidrs       = [c.strip() for c in _discovery_cidr.split(",") if c.strip()]
 
-    gateway_host = None
+    gateway_hosts = []
     infra_hosts   = []
     device_hosts  = []
     for host in hosts:
-        cls = _classify_host(host, gateway_ip)
+        cls = _classify_host(host, gateway_ips)
         if cls == "gateway":
-            gateway_host = host
+            gateway_hosts.append(host)
         elif cls == "infrastructure":
             infra_hosts.append(host)
         else:
@@ -2309,23 +2352,24 @@ async def topology_page(request: Request, db: AsyncSession = Depends(get_db)):
     def _sort_ip(h):
         return [int(x) for x in h.ip.split(".")]
 
+    gateway_hosts.sort(key=_sort_ip)
     infra_hosts.sort(key=_sort_ip)
     device_hosts.sort(key=_sort_ip)
 
-    groups_by24    = defaultdict(list)
-    groups_bycidr  = defaultdict(list)
+    groups_by24   = defaultdict(list)
+    groups_bycidr = defaultdict(list)
     for h in device_hosts:
         groups_by24[_slash24(h.ip)].append(h)
         groups_bycidr[_containing_cidr(h.ip, cidrs)].append(h)
 
     return _tpl("topology.html", {
-        "request":       request,
-        "gateway_host":  gateway_host,
-        "gateway_ip":    gateway_ip,
-        "infra_hosts":   infra_hosts,
-        "device_hosts":  device_hosts,
-        "groups_by24":   dict(sorted(groups_by24.items())),
-        "groups_bycidr": dict(sorted(groups_bycidr.items())),
+        "request":        request,
+        "gateway_hosts":  gateway_hosts,
+        "gateway_ips":    gateway_ips,
+        "infra_hosts":    infra_hosts,
+        "device_hosts":   device_hosts,
+        "groups_by24":    dict(sorted(groups_by24.items())),
+        "groups_bycidr":  dict(sorted(groups_bycidr.items())),
     })
 
 

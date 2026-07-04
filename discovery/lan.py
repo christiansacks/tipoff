@@ -18,13 +18,19 @@ _VM_OUIS = {
     "00:1c:42",  # Parallels
     "50:6b:8d",  # Nutanix AHV
 }
+_CUSTOM_VM_OUIS: set[str] = set()
+
+
+def set_custom_vm_ouis(ouis: set[str]) -> None:
+    global _CUSTOM_VM_OUIS
+    _CUSTOM_VM_OUIS = {o.lower()[:8] for o in ouis if o}
 
 
 def _is_vm_mac(mac: str) -> bool:
     if not mac:
         return False
-    # Known hypervisor OUI prefixes
-    if mac.lower()[:8] in _VM_OUIS:
+    prefix = mac.lower()[:8]
+    if prefix in _VM_OUIS or prefix in _CUSTOM_VM_OUIS:
         return True
     # Locally Administered Address bit (0x02 in first octet) — set by Proxmox/QEMU
     # when generating random MACs for VMs; real NIC hardware uses globally unique MACs

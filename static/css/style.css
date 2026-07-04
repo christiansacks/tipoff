@@ -872,6 +872,76 @@ details.wp-checklist[open] summary::before { transform: rotate(90deg); }
   padding: 2px 8px;
 }
 
+.nav-update-chip {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: #000;
+  background: var(--warn);
+  border-radius: 4px;
+  padding: 2px 8px;
+  margin-left: auto;
+  margin-right: .75rem;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: opacity .2s;
+}
+.nav-update-chip:hover { opacity: .85; }
+
+.version-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+}
+.version-card.update-available {
+  border-color: var(--warn);
+}
+.version-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.version-label {
+  font-size: .78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+  min-width: 110px;
+}
+.version-value {
+  font-size: .9rem;
+  font-weight: 600;
+  font-family: monospace;
+}
+.version-cmd-wrap {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+.version-cmd {
+  font-family: monospace;
+  font-size: .82rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: .45rem .75rem;
+  color: var(--text);
+  flex: 1;
+  min-width: 240px;
+}
+.btn-copy {
+  font-size: .8rem;
+  padding: .4rem .85rem;
+  white-space: nowrap;
+}
+
 /* ── Breach monitoring ──────────────────────────────────────── */
 .breach-email-list { display: flex; flex-direction: column; gap: .4rem; margin-bottom: 1rem; }
 .breach-email-row {

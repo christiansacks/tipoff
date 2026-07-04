@@ -61,6 +61,37 @@ from discovery.port_info import PORT_INFO
 from discovery.port_info import enrich_ports
 from license import verify_license_key, LicenseInfo, LicenseStatus
 
+# ── Version ────────────────────────────────────────────────────────────────────
+APP_VERSION     = "0.2.0"
+_latest_version = ""
+_update_available = False
+
+
+def _version_tuple(v: str) -> tuple:
+    try:
+        return tuple(int(x) for x in v.strip().lstrip("v").split("."))
+    except Exception:
+        return (0, 0, 0)
+
+
+async def _check_latest_version():
+    global _latest_version, _update_available
+    import urllib.request as _urlreq
+    try:
+        url = "https://api.github.com/repos/christiansacks/tipoff/releases/latest"
+        req = _urlreq.Request(url, headers={"User-Agent": f"tipoff/{APP_VERSION}"})
+        with _urlreq.urlopen(req, timeout=10) as r:
+            data = json.loads(r.read())
+            tag = data.get("tag_name", "").strip().lstrip("v")
+            if tag:
+                _latest_version   = tag
+                _update_available = _version_tuple(tag) > _version_tuple(APP_VERSION)
+                templates.env.globals["latest_version"]   = _latest_version
+                templates.env.globals["update_available"] = _update_available
+    except Exception:
+        pass
+
+
 # ── License ────────────────────────────────────────────────────────────────────
 _license: LicenseInfo = LicenseInfo()
 
@@ -825,10 +856,12 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(run_due_scans, "interval", hours=1, id="domain_scanner")
     scheduler.add_job(_run_uptime_checks, "interval", minutes=5, id="uptime_checks")
     scheduler.add_job(_send_domain_expiry_alerts, "cron", hour=9, minute=0, id="expiry_alerts", misfire_grace_time=3600)
+    scheduler.add_job(_check_latest_version, "interval", hours=24, id="version_check")
     scheduler.start()
     _apply_lan_schedule()
     _apply_digest_schedule()
     asyncio.create_task(run_due_scans())
+    asyncio.create_task(_check_latest_version())
     yield
     scheduler.shutdown()
 
@@ -865,7 +898,10 @@ async def auth_middleware(request: Request, call_next):
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
-templates.env.globals["LicenseStatus"] = LicenseStatus
+templates.env.globals["LicenseStatus"]   = LicenseStatus
+templates.env.globals["app_version"]     = APP_VERSION
+templates.env.globals["latest_version"]  = _latest_version
+templates.env.globals["update_available"] = _update_available
 
 @app.middleware("http")
 async def inject_license(request: Request, call_next):

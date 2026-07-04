@@ -6,6 +6,51 @@
   <h1>Settings</h1>
 </div>
 
+<!-- ── Version ────────────────────────────────────────────────────── -->
+<section class="card" id="version" style="margin-bottom:1.5rem">
+  <div class="card-header">
+    <h2>Version</h2>
+    {% if update_available %}
+      <span class="badge warn">Update available</span>
+    {% else %}
+      <span class="badge pass">Up to date</span>
+    {% endif %}
+  </div>
+  <div class="version-card {{ 'update-available' if update_available else '' }}">
+    <div class="version-row">
+      <span class="version-label">Running</span>
+      <span class="version-value">v{{ app_version }}</span>
+    </div>
+    <div class="version-row">
+      <span class="version-label">Latest</span>
+      <span class="version-value">
+        {% if latest_version %}
+          v{{ latest_version }}
+          {% if not update_available %}<span class="muted" style="font-size:.8rem;font-weight:400;font-family:sans-serif"> — you're up to date</span>{% endif %}
+        {% else %}
+          <span class="muted" style="font-weight:400;font-family:sans-serif">Checking…</span>
+        {% endif %}
+      </span>
+    </div>
+    {% if update_available %}
+    <div class="version-row" style="flex-direction:column;align-items:flex-start;gap:.5rem">
+      <span class="version-label">Update</span>
+      <div class="version-cmd-wrap">
+        <input class="version-cmd" id="update-cmd" readonly
+               value="docker compose pull && docker compose up -d">
+        <button class="btn btn-copy" onclick="copyUpdateCmd()">Copy</button>
+        <a href="https://github.com/christiansacks/tipoff/releases" target="_blank" rel="noopener"
+           class="btn btn-secondary" style="font-size:.8rem">Changelog →</a>
+      </div>
+      <p class="muted" style="font-size:.8rem;margin:0">
+        Run this command in the directory containing your <code>docker-compose.yml</code>.
+        TipOff will pull the new image and restart automatically.
+      </p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
 <!-- ── Scanning ───────────────────────────────────────────────────── -->
 <section class="card collapsible-card" id="settings-scanning">
   <div class="card-summary" onclick="toggleSection('settings-scanning')">
@@ -555,6 +600,18 @@
 </section>
 
 <script>
+  function copyUpdateCmd() {
+    const input = document.getElementById('update-cmd');
+    if (!input) return;
+    navigator.clipboard.writeText(input.value).then(function() {
+      const btn = document.querySelector('.btn-copy');
+      if (btn) { btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy', 2000); }
+    }).catch(function() {
+      input.select();
+      document.execCommand('copy');
+    });
+  }
+
   function toggleSection(id) {
     const body    = document.getElementById('body-' + id);
     const chevron = document.getElementById('chevron-' + id);

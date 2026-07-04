@@ -10,6 +10,9 @@
 <body>
   <nav>
     <a href="/" class="logo">TipOff</a>
+    {% if update_available and not readonly %}
+      <a href="/settings#version" class="nav-update-chip" title="v{{ latest_version }} available — click to see update instructions">⬆ v{{ latest_version }}</a>
+    {% endif %}
     {% if readonly %}
       <span class="nav-readonly" style="margin-left:auto">Read-only view</span>
     {% else %}

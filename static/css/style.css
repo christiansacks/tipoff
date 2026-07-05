@@ -675,6 +675,12 @@ details.wp-checklist[open] summary::before { transform: rotate(90deg); }
 .port-detail-row.risk-info     { border-left-color: var(--pass); background: rgba(34,197,94,.05); }
 
 .port-detail-header { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem; }
+/* Readable link colours on the dark theme — browser defaults (esp. :visited
+   purple) are illegible. Scoped to unclassed anchors so styled components
+   (nav, buttons, topo nodes) keep their own colours. */
+main a:not([class]), main a:not([class]):visited { color: #60b8f5; }
+main a:not([class]):hover { color: #93cffa; }
+
 .port-detail-badge {
   font-family: monospace;
   font-size: 13px;
@@ -683,6 +689,8 @@ details.wp-checklist[open] summary::before { transform: rotate(90deg); }
   padding: 2px 8px;
   border-radius: 4px;
 }
+a.port-detail-badge, a.port-detail-badge:visited { color: #60b8f5; }
+a.port-detail-badge:hover { color: #93cffa; background: rgba(96,184,245,.12); }
 .risk-badge {
   font-size: 10px;
   font-weight: 700;

@@ -116,6 +116,27 @@
     </div>
   </div>
 
+  <!-- ── Remote / VPN ── -->
+  {% if remote_subnet_list %}
+  <div class="topo-vline topo-vline-dashed"></div>
+  <div class="topo-section-label" style="color:var(--accent)">Remote / VPN</div>
+  <div class="topo-groups">
+    {% for rs in remote_subnet_list %}
+    <div class="topo-group topo-group-remote">
+      <div class="topo-group-label topo-group-label-remote">
+        {{ rs.subnet }}
+        {% if rs.gateway_ip and rs.gateway_ip != 'unknown' %}
+        <span class="muted" style="font-weight:400"> via {{ rs.gateway_ip }}</span>
+        {% endif %}
+      </div>
+      <div class="topo-group-nodes">
+        {% for host in rs.hosts %}{% include "partials/topo_node.html" %}{% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
 </div>
 
 <script>

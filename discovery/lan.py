@@ -61,21 +61,57 @@ def _read_arp_cache() -> dict[str, dict]:
     return result
 
 
-async def _ping(ip: str) -> str | None:
+async def _ping(ip: str) -> tuple[str | None, int | None]:
+    """Ping once; return (ip, ttl) on success or (None, None) on failure."""
     proc = await asyncio.create_subprocess_exec(
         "ping", "-c", "1", "-W", "1", ip,
-        stdout=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
     )
-    await proc.wait()
-    return ip if proc.returncode == 0 else None
+    stdout, _ = await proc.communicate()
+    if proc.returncode == 0:
+        m = re.search(r"\bttl=(\d+)\b", stdout.decode(), re.IGNORECASE)
+        return ip, int(m.group(1)) if m else None
+    return None, None
 
 
-async def ping_sweep(cidr: str) -> list[str]:
+async def ping_sweep(cidr: str) -> list[tuple[str, int | None]]:
     network = ipaddress.ip_network(cidr, strict=False)
-    tasks = [_ping(str(ip)) for ip in network.hosts()]
-    results = await asyncio.gather(*tasks)
-    return [ip for ip in results if ip is not None]
+    results = await asyncio.gather(*[_ping(str(ip)) for ip in network.hosts()])
+    return [(ip, ttl) for ip, ttl in results if ip is not None]
+
+
+def _hop_count_from_ttl(ttl: int) -> int:
+    """Estimate hop count from ICMP reply TTL (assumes common initial values 64/128/255)."""
+    if ttl > 128:
+        return 255 - ttl
+    if ttl > 64:
+        return 128 - ttl
+    return 64 - ttl
+
+
+async def _traceroute_first_hop(ip: str) -> str | None:
+    """Return the first responding intermediate hop IP when tracing to ip."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "traceroute", "-n", "-m", "4", "-q", "1", "-w", "1", ip,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
+        for line in stdout.decode().splitlines()[1:]:  # skip header
+            parts = line.split()
+            if len(parts) >= 2 and parts[1] != "*":
+                try:
+                    candidate = parts[1]
+                    ipaddress.ip_address(candidate)
+                    if candidate != ip:
+                        return candidate
+                except ValueError:
+                    pass
+    except Exception:
+        pass
+    return None
 
 
 # ── Hostname resolution ────────────────────────────────────────────────────────
@@ -271,6 +307,14 @@ async def rescan_host(ip: str) -> dict:
     arp_data  = arp_cache.get(ip, {"mac": "", "vendor": ""})
     result    = {**arp_data, **scan_data, "hostname": hostname}
     result["is_vm"] = _is_vm_mac(result.get("mac", ""))
+    _, ttl    = await _ping(ip)
+    hop_count = _hop_count_from_ttl(ttl) if ttl is not None else None
+    gateway_ip = None
+    if hop_count is not None and hop_count >= 2:
+        gateway_ip = await _traceroute_first_hop(ip)
+    result["ttl"]        = ttl
+    result["hop_count"]  = hop_count
+    result["gateway_ip"] = gateway_ip
     return result
 
 
@@ -283,7 +327,9 @@ async def discover_network(cidr: str, progress: dict | None = None) -> list[dict
             progress.update(kw)
 
     _update(stage=f"Finding live hosts on {cidr}…")
-    live_ips = await ping_sweep(cidr)
+    live_pairs = await ping_sweep(cidr)
+    ttl_map    = {ip: ttl for ip, ttl in live_pairs}
+    live_ips   = list(ttl_map.keys())
     _update(hosts_found=len(live_ips))
 
     # Wait for ARP cache to settle after ping sweep before reading it
@@ -302,9 +348,17 @@ async def discover_network(cidr: str, progress: dict | None = None) -> list[dict
             if progress is not None:
                 progress["scanned"] = progress.get("scanned", 0) + 1
                 progress["stage"]   = f"Scanning hosts… {progress['scanned']}/{progress['total']}"
-            arp_data = arp_cache.get(ip, {"mac": "", "vendor": ""})
-            result   = {**arp_data, **scan_data, "hostname": hostname}
+            arp_data  = arp_cache.get(ip, {"mac": "", "vendor": ""})
+            result    = {**arp_data, **scan_data, "hostname": hostname}
             result["is_vm"] = _is_vm_mac(result.get("mac", ""))
+            ttl       = ttl_map.get(ip)
+            hop_count = _hop_count_from_ttl(ttl) if ttl is not None else None
+            gateway_ip = None
+            if hop_count is not None and hop_count >= 2:
+                gateway_ip = await _traceroute_first_hop(ip)
+            result["ttl"]        = ttl
+            result["hop_count"]  = hop_count
+            result["gateway_ip"] = gateway_ip
             return result
 
     return await asyncio.gather(*[_scan(ip) for ip in live_ips])

@@ -60,6 +60,9 @@ class Host(Base):
     is_vm            = Column(Boolean, default=False)
     tags             = Column(JSON, default=list)
     ipv6_addresses   = Column(JSON, default=list)  # list of IPv6 address strings
+    ttl              = Column(Integer, nullable=True)   # ICMP reply TTL from last ping
+    hop_count        = Column(Integer, nullable=True)   # estimated hops from TTL
+    gateway_ip       = Column(String, nullable=True)    # first traceroute hop for remote hosts
 
 
 class ScanResult(Base):
@@ -197,6 +200,9 @@ async def init_db():
             "ALTER TABLE hosts ADD COLUMN is_vm BOOLEAN DEFAULT FALSE",
             "ALTER TABLE hosts ADD COLUMN tags TEXT DEFAULT '[]'",
             "ALTER TABLE hosts ADD COLUMN ipv6_addresses TEXT DEFAULT '[]'",
+            "ALTER TABLE hosts ADD COLUMN ttl INTEGER",
+            "ALTER TABLE hosts ADD COLUMN hop_count INTEGER",
+            "ALTER TABLE hosts ADD COLUMN gateway_ip TEXT",
         ]:
             try:
                 await conn.execute(text(sql))

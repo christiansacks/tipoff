@@ -349,6 +349,10 @@ details.wp-checklist[open] summary::before { transform: rotate(90deg); }
   background: rgba(20,184,166,.12); color: #2dd4bf;
   border-color: rgba(20,184,166,.25);
 }
+.host-tag-hop {
+  background: rgba(245,158,11,.12); color: #f59e0b;
+  border-color: rgba(245,158,11,.25);
+}
 .host-tag-remove {
   background: none; border: none; color: #818cf8; cursor: pointer;
   padding: 0; line-height: 1; font-size: 12px; opacity: 0.6;
@@ -1386,6 +1390,11 @@ input[type=number] { -moz-appearance: textfield; }
   background: var(--border);
   flex-shrink: 0;
 }
+.topo-vline-dashed {
+  background: none;
+  border-left: 2px dashed var(--border);
+  width: 0;
+}
 
 /* Section label (Infrastructure / Devices) */
 .topo-section-label {
@@ -1438,6 +1447,7 @@ input[type=number] { -moz-appearance: textfield; }
 .topo-infra  { border-color: rgba(245,158,11,.35); background: rgba(245,158,11,.04); }
 .topo-flagged { border-color: var(--fail); }
 .topo-acked   { border-color: var(--muted); opacity: 0.8; }
+.topo-remote  { border-color: rgba(99,102,241,.3); border-style: dashed; }
 
 /* Node text */
 .topo-node-label  { font-size: 9px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
@@ -1469,6 +1479,11 @@ input[type=number] { -moz-appearance: textfield; }
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 0.15rem 0.6rem;
+}
+.topo-group-label-remote {
+  color: var(--accent);
+  border-color: rgba(99,102,241,.35);
+  border-style: dashed;
 }
 .topo-group-nodes {
   display: flex;

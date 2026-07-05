@@ -521,6 +521,25 @@ async def _http_check(url: str, timeout: int = 10) -> tuple[bool, int | None, in
         return False, None, None
 
 
+async def _icmp_check(host: str, timeout: int = 5) -> tuple[bool, int | None]:
+    """ICMP ping check; return (is_up, response_ms)."""
+    import re as _re
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "ping", "-c", "1", "-W", str(timeout), host,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout + 2)
+        if proc.returncode == 0:
+            m = _re.search(r"time=([\d.]+)", stdout.decode())
+            ms = int(float(m.group(1))) if m else None
+            return True, ms
+        return False, None
+    except Exception:
+        return False, None
+
+
 async def _tcp_check(host: str, port: int, timeout: int = 5) -> tuple[bool, int | None]:
     """TCP connect check, return (is_up, response_ms)."""
     import asyncio as _asyncio
@@ -570,7 +589,9 @@ async def _run_uptime_checks():
         for mon in monitors_result.scalars().all():
             is_up, response_ms, status_code = False, None, None
 
-            if mon.protocol == "tcp":
+            if mon.protocol == "icmp":
+                is_up, response_ms = await _icmp_check(mon.host)
+            elif mon.protocol == "tcp":
                 is_up, response_ms = await _tcp_check(mon.host, mon.port)
             else:
                 scheme = "https" if mon.protocol == "https" else "http"
@@ -2236,6 +2257,10 @@ async def _run_discovery_job(job_id: str, cidr: str):
                     host_row.flagged    = h.get("flagged", False)
                     host_row.last_seen  = datetime.now(timezone.utc)
                     host_row.is_vm      = h.get("is_vm", False)
+                    if h.get("ttl") is not None:
+                        host_row.ttl        = h["ttl"]
+                        host_row.hop_count  = h.get("hop_count")
+                        host_row.gateway_ip = h.get("gateway_ip")
                 else:
                     db.add(Host(
                         ip=h["ip"],
@@ -2246,6 +2271,9 @@ async def _run_discovery_job(job_id: str, cidr: str):
                         open_ports=h.get("open_ports", []),
                         flagged=h.get("flagged", False),
                         is_vm=h.get("is_vm", False),
+                        ttl=h.get("ttl"),
+                        hop_count=h.get("hop_count"),
+                        gateway_ip=h.get("gateway_ip"),
                     ))
             await db.commit()
         for change in port_changes:
@@ -2376,12 +2404,15 @@ async def topology_page(request: Request, db: AsyncSession = Depends(get_db)):
     gateway_hosts = []
     infra_hosts   = []
     device_hosts  = []
+    remote_hosts  = []
     for host in hosts:
         cls = _classify_host(host, gateway_ips)
         if cls == "gateway":
             gateway_hosts.append(host)
         elif cls == "infrastructure":
             infra_hosts.append(host)
+        elif (host.hop_count or 0) >= 2:
+            remote_hosts.append(host)
         else:
             device_hosts.append(host)
 
@@ -2391,6 +2422,7 @@ async def topology_page(request: Request, db: AsyncSession = Depends(get_db)):
     gateway_hosts.sort(key=_sort_ip)
     infra_hosts.sort(key=_sort_ip)
     device_hosts.sort(key=_sort_ip)
+    remote_hosts.sort(key=_sort_ip)
 
     groups_by24   = defaultdict(list)
     groups_bycidr = defaultdict(list)
@@ -2398,14 +2430,25 @@ async def topology_page(request: Request, db: AsyncSession = Depends(get_db)):
         groups_by24[_slash24(h.ip)].append(h)
         groups_bycidr[_containing_cidr(h.ip, cidrs)].append(h)
 
+    # Group remote hosts by (gateway_ip, /24 subnet)
+    _remote_map: dict[tuple, list] = defaultdict(list)
+    for h in remote_hosts:
+        key = (h.gateway_ip or "unknown", _slash24(h.ip))
+        _remote_map[key].append(h)
+    remote_subnet_list = [
+        {"gateway_ip": k[0], "subnet": k[1], "hosts": v}
+        for k, v in sorted(_remote_map.items())
+    ]
+
     return _tpl("topology.html", {
-        "request":        request,
-        "gateway_hosts":  gateway_hosts,
-        "gateway_ips":    gateway_ips,
-        "infra_hosts":    infra_hosts,
-        "device_hosts":   device_hosts,
-        "groups_by24":    dict(sorted(groups_by24.items())),
-        "groups_bycidr":  dict(sorted(groups_bycidr.items())),
+        "request":            request,
+        "gateway_hosts":      gateway_hosts,
+        "gateway_ips":        gateway_ips,
+        "infra_hosts":        infra_hosts,
+        "device_hosts":       device_hosts,
+        "groups_by24":        dict(sorted(groups_by24.items())),
+        "groups_bycidr":      dict(sorted(groups_bycidr.items())),
+        "remote_subnet_list": remote_subnet_list,
     })
 
 
@@ -2530,9 +2573,14 @@ async def status_page(request: Request, db: AsyncSession = Depends(get_db)):
         latest = latest_result.scalars().first()
         current_up = latest.is_up if latest else None
 
+        status_hint = ""
+        if latest and latest.status_code:
+            status_hint = f" · HTTP {latest.status_code}"
+        elif latest and not latest.is_up:
+            status_hint = " · no response"
         items.append({
             "label":      domain.hostname,
-            "sublabel":   None,
+            "sublabel":   f"HTTPS/HTTP check{status_hint}",
             "domain":     domain,
             "grid":       grid,
             "uptime_pct": uptime_pct,
@@ -2578,9 +2626,13 @@ async def status_page(request: Request, db: AsyncSession = Depends(get_db)):
             .order_by(UptimeCheck.checked_at.desc())
         )
         latest = latest_result.scalars().first()
+        if mon.protocol == "icmp":
+            sublabel = f"{mon.host} (ICMP ping)"
+        else:
+            sublabel = f"{mon.host}:{mon.port} ({mon.protocol.upper()})"
         items.append({
             "label":      f"{mon.name}",
-            "sublabel":   f"{mon.host}:{mon.port} ({mon.protocol.upper()})",
+            "sublabel":   sublabel,
             "grid":       grid,
             "uptime_pct": uptime_pct,
             "current_up": latest.is_up if latest else None,
@@ -2620,7 +2672,7 @@ async def add_monitor(
     request: Request,
     name:            str = Form(),
     host:            str = Form(),
-    port:            int = Form(),
+    port:            str = Form(default="0"),
     protocol:        str = Form(default="tcp"),
     expected_status: str = Form(default=""),
     db: AsyncSession = Depends(get_db),
@@ -2628,7 +2680,7 @@ async def add_monitor(
     mon = Monitor(
         name=name.strip(),
         host=host.strip(),
-        port=port,
+        port=int(port) if port and port.strip().isdigit() else 0,
         protocol=protocol,
         expected_status=expected_status.strip() or None,
     )

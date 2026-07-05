@@ -21,18 +21,19 @@
         <label>Host</label>
         <input type="text" name="host" placeholder="bbs.erb.pw" required>
       </div>
-      <div class="field" style="margin:0">
+      <div class="field" style="margin:0" id="port-field">
         <label>Port</label>
-        <input type="text" inputmode="numeric" pattern="[0-9]*" name="port" placeholder="22" required
+        <input type="text" inputmode="numeric" pattern="[0-9]*" name="port" placeholder="22"
                style="width:100%;-moz-appearance:textfield">
       </div>
       <div class="field" style="margin:0">
         <label>Protocol</label>
-        <select name="protocol" id="protocol-select" onchange="toggleExpected(this.value)"
+        <select name="protocol" id="protocol-select" onchange="toggleMonitorFields(this.value)"
                 style="background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:.5rem .75rem;font-size:14px;width:100%">
           <option value="tcp">TCP</option>
           <option value="http">HTTP</option>
           <option value="https">HTTPS</option>
+          <option value="icmp">ICMP (ping)</option>
         </select>
       </div>
     </div>
@@ -71,7 +72,9 @@
           <span style="font-weight:600">{{ item.monitor.name }}</span>
           {% if not item.monitor.enabled %}<span class="badge" style="margin-left:.4rem">Disabled</span>{% endif %}
         </td>
-        <td style="padding:.75rem;font-family:monospace;font-size:12px">{{ item.monitor.host }}:{{ item.monitor.port }}</td>
+        <td style="padding:.75rem;font-family:monospace;font-size:12px">
+          {% if item.monitor.protocol == 'icmp' %}{{ item.monitor.host }}{% else %}{{ item.monitor.host }}:{{ item.monitor.port }}{% endif %}
+        </td>
         <td style="padding:.75rem">
           <span class="badge">{{ item.monitor.protocol.upper() }}</span>
         </td>
@@ -125,9 +128,11 @@
 {% endif %}
 
 <script>
-function toggleExpected(protocol) {
+function toggleMonitorFields(protocol) {
   document.getElementById('expected-status-field').style.display =
     (protocol === 'http' || protocol === 'https') ? 'block' : 'none';
+  document.getElementById('port-field').style.display =
+    protocol === 'icmp' ? 'none' : '';
 }
 </script>
 

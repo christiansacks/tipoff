@@ -62,7 +62,7 @@ from discovery.port_info import enrich_ports
 from license import verify_license_key, LicenseInfo, LicenseStatus
 
 # ── Version ────────────────────────────────────────────────────────────────────
-APP_VERSION     = "0.2.6"
+APP_VERSION     = "0.2.7"
 _latest_version = ""
 _update_available = False
 
@@ -2261,6 +2261,8 @@ async def _run_discovery_job(job_id: str, cidr: str):
                         host_row.ttl        = h["ttl"]
                         host_row.hop_count  = h.get("hop_count")
                         host_row.gateway_ip = h.get("gateway_ip")
+                    if h.get("ping_ms") is not None:
+                        host_row.ping_ms    = h["ping_ms"]
                 else:
                     db.add(Host(
                         ip=h["ip"],
@@ -2274,6 +2276,7 @@ async def _run_discovery_job(job_id: str, cidr: str):
                         ttl=h.get("ttl"),
                         hop_count=h.get("hop_count"),
                         gateway_ip=h.get("gateway_ip"),
+                        ping_ms=h.get("ping_ms"),
                     ))
             await db.commit()
         for change in port_changes:
@@ -2430,6 +2433,15 @@ async def topology_page(request: Request, db: AsyncSession = Depends(get_db)):
         groups_by24[_slash24(h.ip)].append(h)
         groups_bycidr[_containing_cidr(h.ip, cidrs)].append(h)
 
+    # Median ping RTT of local hosts — baseline for the VPN/WAN latency hint
+    def _median(vals: list[float]) -> float | None:
+        vals = sorted(vals)
+        return vals[len(vals) // 2] if vals else None
+
+    local_baseline = _median(
+        [h.ping_ms for h in (device_hosts + infra_hosts + gateway_hosts) if h.ping_ms]
+    )
+
     # Group remote hosts by /24 subnet; label with the first known gateway
     _remote_map: dict[str, list] = defaultdict(list)
     for h in remote_hosts:
@@ -2437,6 +2449,15 @@ async def topology_page(request: Request, db: AsyncSession = Depends(get_db)):
     remote_subnet_list = []
     for subnet, hs in sorted(_remote_map.items()):
         gw = next((h.gateway_ip for h in hs if h.gateway_ip), "unknown")
+        # Latency hint: a routed subnet whose hosts answer an order of magnitude
+        # slower than the local LAN is probably behind a tunnel or WAN link, not
+        # a local VLAN / second segment (those stay sub-millisecond).
+        remote_median = _median([h.ping_ms for h in hs if h.ping_ms])
+        likely_vpn = (
+            remote_median is not None
+            and remote_median >= 3.0
+            and (local_baseline is None or remote_median >= 5 * local_baseline)
+        )
         # Peer inference: if exactly one host is a full hop closer than all the
         # others, it's almost certainly the subnet's router/VPN peer — promote it
         # and hang the rest underneath. Anything messier falls back to flat.
@@ -2450,6 +2471,7 @@ async def topology_page(request: Request, db: AsyncSession = Depends(get_db)):
         remote_subnet_list.append({
             "gateway_ip": gw, "subnet": subnet,
             "peer": peer, "children": children,
+            "likely_vpn": likely_vpn,
         })
 
     return _tpl("topology.html", {

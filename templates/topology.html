@@ -121,7 +121,7 @@
 
     </div>
 
-    <!-- ── Remote / VPN column (hangs off the gateway's right side) ── -->
+    <!-- ── Routed subnets column (hangs off the gateway's right side) ── -->
     {% if remote_subnet_list %}
     <div class="topo-remote-col" id="topo-remote-col">
       {% for rs in remote_subnet_list %}
@@ -133,12 +133,17 @@
           {% endif %}
         </div>
         <div class="topo-vline topo-vline-dashed"></div>
-        <div class="topo-section-label" style="color:var(--accent)">Remote / VPN</div>
+        <div class="topo-section-label" style="color:var(--accent)">
+          Routed subnet
+          {% if rs.likely_vpn %}
+          <span class="host-tag-chip" style="font-size:9px;padding:0 5px;margin-left:.35rem;text-transform:none;letter-spacing:0" title="Hosts here answer far slower than your local LAN — this link is probably a VPN tunnel or WAN circuit rather than a local segment">likely VPN/WAN</span>
+          {% endif %}
+        </div>
 
         {% if rs.peer %}
         {% set peer = rs.peer %}
         <a href="/host/{{ peer.id }}" class="topo-node topo-vpn-peer">
-          <div class="topo-node-label">VPN Peer</div>
+          <div class="topo-node-label">Gateway</div>
           <div class="topo-node-ip">{{ peer.ip }}</div>
           {% if peer.hostname %}<div class="topo-node-name">{{ peer.hostname }}</div>{% endif %}
           {% if peer.vendor and peer.vendor != 'Unknown' %}<div class="topo-node-vendor">{{ peer.vendor }}</div>{% endif %}

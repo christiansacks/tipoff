@@ -61,8 +61,8 @@ def _read_arp_cache() -> dict[str, dict]:
     return result
 
 
-async def _ping(ip: str) -> tuple[str | None, int | None]:
-    """Ping once; return (ip, ttl) on success or (None, None) on failure."""
+async def _ping(ip: str) -> tuple[str | None, int | None, float | None]:
+    """Ping once; return (ip, ttl, rtt_ms) on success or (None, None, None) on failure."""
     proc = await asyncio.create_subprocess_exec(
         "ping", "-c", "1", "-W", "1", ip,
         stdout=asyncio.subprocess.PIPE,
@@ -70,12 +70,14 @@ async def _ping(ip: str) -> tuple[str | None, int | None]:
     )
     stdout, _ = await proc.communicate()
     if proc.returncode == 0:
-        m = re.search(r"\bttl=(\d+)\b", stdout.decode(), re.IGNORECASE)
-        return ip, int(m.group(1)) if m else None
-    return None, None
+        out = stdout.decode()
+        m = re.search(r"\bttl=(\d+)\b", out, re.IGNORECASE)
+        t = re.search(r"time=([\d.]+)", out)
+        return ip, int(m.group(1)) if m else None, float(t.group(1)) if t else None
+    return None, None, None
 
 
-async def ping_sweep(cidr: str) -> list[tuple[str, int | None]]:
+async def ping_sweep(cidr: str) -> list[tuple[str, int | None, float | None]]:
     network = ipaddress.ip_network(cidr, strict=False)
     sem = asyncio.Semaphore(100)
 
@@ -84,7 +86,7 @@ async def ping_sweep(cidr: str) -> list[tuple[str, int | None]]:
             return await _ping(ip)
 
     results = await asyncio.gather(*[_ping_limited(str(ip)) for ip in network.hosts()])
-    return [(ip, ttl) for ip, ttl in results if ip is not None]
+    return [(ip, ttl, rtt) for ip, ttl, rtt in results if ip is not None]
 
 
 def _hop_count_from_ttl(ttl: int) -> int:
@@ -313,7 +315,7 @@ async def rescan_host(ip: str) -> dict:
     arp_data  = arp_cache.get(ip, {"mac": "", "vendor": ""})
     result    = {**arp_data, **scan_data, "hostname": hostname}
     result["is_vm"] = _is_vm_mac(result.get("mac", ""))
-    _, ttl    = await _ping(ip)
+    _, ttl, rtt = await _ping(ip)
     hop_count = _hop_count_from_ttl(ttl) if ttl is not None else None
     gateway_ip = None
     if hop_count is not None and hop_count >= 1:
@@ -321,6 +323,7 @@ async def rescan_host(ip: str) -> dict:
     result["ttl"]        = ttl
     result["hop_count"]  = hop_count
     result["gateway_ip"] = gateway_ip
+    result["ping_ms"]    = rtt
     return result
 
 
@@ -334,7 +337,8 @@ async def discover_network(cidr: str, progress: dict | None = None) -> list[dict
 
     _update(stage=f"Finding live hosts on {cidr}…")
     live_pairs = await ping_sweep(cidr)
-    ttl_map    = {ip: ttl for ip, ttl in live_pairs}
+    ttl_map    = {ip: ttl for ip, ttl, _rtt in live_pairs}
+    rtt_map    = {ip: rtt for ip, _ttl, rtt in live_pairs}
     live_ips   = list(ttl_map.keys())
     _update(hosts_found=len(live_ips))
 
@@ -365,6 +369,7 @@ async def discover_network(cidr: str, progress: dict | None = None) -> list[dict
             result["ttl"]        = ttl
             result["hop_count"]  = hop_count
             result["gateway_ip"] = gateway_ip
+            result["ping_ms"]    = rtt_map.get(ip)
             return result
 
     return await asyncio.gather(*[_scan(ip) for ip in live_ips])

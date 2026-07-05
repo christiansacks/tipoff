@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import Column, String, Integer, DateTime, Boolean, JSON, ForeignKey, select, text
+from sqlalchemy import Column, String, Integer, Float, DateTime, Boolean, JSON, ForeignKey, select, text
 from datetime import datetime, timezone
 import hashlib, os, secrets, uuid
 
@@ -63,6 +63,7 @@ class Host(Base):
     ttl              = Column(Integer, nullable=True)   # ICMP reply TTL from last ping
     hop_count        = Column(Integer, nullable=True)   # estimated hops from TTL
     gateway_ip       = Column(String, nullable=True)    # first traceroute hop for remote hosts
+    ping_ms          = Column(Float, nullable=True)     # ICMP RTT in ms from last scan
 
 
 class ScanResult(Base):
@@ -203,6 +204,7 @@ async def init_db():
             "ALTER TABLE hosts ADD COLUMN ttl INTEGER",
             "ALTER TABLE hosts ADD COLUMN hop_count INTEGER",
             "ALTER TABLE hosts ADD COLUMN gateway_ip TEXT",
+            "ALTER TABLE hosts ADD COLUMN ping_ms REAL",
         ]:
             try:
                 await conn.execute(text(sql))

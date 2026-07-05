@@ -77,7 +77,13 @@ async def _ping(ip: str) -> tuple[str | None, int | None]:
 
 async def ping_sweep(cidr: str) -> list[tuple[str, int | None]]:
     network = ipaddress.ip_network(cidr, strict=False)
-    results = await asyncio.gather(*[_ping(str(ip)) for ip in network.hosts()])
+    sem = asyncio.Semaphore(100)
+
+    async def _ping_limited(ip: str):
+        async with sem:
+            return await _ping(ip)
+
+    results = await asyncio.gather(*[_ping_limited(str(ip)) for ip in network.hosts()])
     return [(ip, ttl) for ip, ttl in results if ip is not None]
 
 

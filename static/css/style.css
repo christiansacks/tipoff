@@ -1459,47 +1459,38 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* Full-width topology page */
 main:has(.topo-tree) { max-width: none; }
+.topo-tree { position: relative; }
 
-/* ── Family-tree branches ─────────────────────────────────────────── */
-.topo-branches {
+/* ── Two-column layout: local tree + remote/VPN column ────────────── */
+.topo-layout {
   display: flex;
-  justify-content: center;
   align-items: flex-start;
   width: 100%;
+  gap: 1.5rem;
 }
-.topo-branch {
-  position: relative;
+.topo-main-col {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 1.75rem 1rem 0;
-  min-width: 0;
 }
-/* vertical stub dropping to each branch head */
-.topo-branch::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 50%;
-  height: 1.75rem;
-  border-left: 2px solid var(--border);
+.topo-remote-col {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+  padding-top: 8rem;      /* fallback; JS aligns pills just below the connector */
 }
-/* horizontal rail linking siblings */
-.topo-branch::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  border-top: 2px solid var(--border);
+.topo-remote-branch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
-.topo-branch:first-child::after { left: 50%; }
-.topo-branch:last-child::after  { right: 50%; }
-.topo-branch:only-child::after  { display: none; }
-
-/* dashed connectors for remote/VPN branches */
-.topo-branch-remote::before { border-left-style: dashed; border-left-color: rgba(99,102,241,.5); }
-.topo-branch-remote::after  { border-top-style: dashed; border-top-color: rgba(99,102,241,.5); }
+.topo-remote-nodes {
+  max-width: 400px;
+  justify-content: center;
+}
 
 /* branch head pill */
 .topo-branch-head {
@@ -1522,10 +1513,45 @@ main:has(.topo-tree) { max-width: none; }
   font-family: monospace;
 }
 
-/* sub-branches (subnet groups under Devices) */
-.topo-branches-sub { flex-wrap: wrap; row-gap: 0.75rem; }
-.topo-branches-sub .topo-branch { padding-top: 1.25rem; gap: 0.6rem; }
-.topo-branches-sub .topo-branch::before { height: 1.25rem; }
+/* ── Subnet group branches under Devices (family-tree rails) ──────── */
+.topo-branches-sub {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  width: 100%;
+}
+.topo-branch {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 1.25rem 0.75rem 0;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+/* vertical stub dropping to each group label */
+.topo-branch::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  height: 1.25rem;
+  border-left: 2px solid var(--border);
+}
+/* horizontal rail linking sibling groups */
+.topo-branch::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  border-top: 2px solid var(--border);
+}
+.topo-branch:first-child::after { left: 50%; }
+.topo-branch:last-child::after  { right: 50%; }
+.topo-branch:only-child::after  { display: none; }
 
 .topo-group-label {
   font-size: 10px;
@@ -1539,7 +1565,9 @@ main:has(.topo-tree) { max-width: none; }
 
 /* stacked fallback on narrow screens — hide connector lines */
 @media (max-width: 900px) {
-  .topo-branches { flex-direction: column; align-items: center; gap: 1.5rem; }
+  .topo-layout { flex-direction: column; align-items: center; }
+  .topo-remote-col { padding-top: 0; flex-wrap: wrap; justify-content: center; }
+  .topo-branches-sub { flex-wrap: wrap; row-gap: 1rem; }
   .topo-branch::before, .topo-branch::after { display: none; }
   .topo-branch { padding-top: 0; }
 }

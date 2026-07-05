@@ -10,50 +10,48 @@
   </div>
 </div>
 
-<div class="topo-tree">
+<div class="topo-tree" id="topo-tree">
+  <div class="topo-layout">
 
-  <!-- ── Internet ── -->
-  <div class="topo-internet-node">
-    <span class="topo-internet-icon">🌐</span> Internet
-  </div>
-  <div class="topo-vline"></div>
+    <!-- ── Main column: Internet → Gateway → Local network ── -->
+    <div class="topo-main-col">
 
-  <!-- ── Gateway ── -->
-  {% if gateway_hosts %}
-  <div class="topo-tier topo-tier-multi">
-    {% for gw in gateway_hosts %}
-    <a href="/host/{{ gw.id }}" class="topo-node topo-gateway">
-      <div class="topo-node-label">Gateway</div>
-      <div class="topo-node-ip">{{ gw.ip }}</div>
-      {% if gw.hostname %}<div class="topo-node-name">{{ gw.hostname }}</div>{% endif %}
-      {% if gw.vendor and gw.vendor != 'Unknown' %}<div class="topo-node-vendor">{{ gw.vendor }}</div>{% endif %}
-      <div class="topo-node-status">
-        {% if gw.host_online is not none %}
-          <span class="host-ping {{ 'host-ping-up' if gw.host_online else 'host-ping-down' }}">
-            {{ '● Online' if gw.host_online else '● Offline' }}
-          </span>
-        {% endif %}
+      <div class="topo-internet-node">
+        <span class="topo-internet-icon">🌐</span> Internet
       </div>
-    </a>
-    {% endfor %}
-  </div>
-  {% elif gateway_ips %}
-  <div class="topo-tier topo-tier-multi">
-    {% for ip in gateway_ips | sort %}
-    <div class="topo-node topo-gateway topo-gateway-unknown">
-      <div class="topo-node-label">Gateway</div>
-      <div class="topo-node-ip">{{ ip }}</div>
-      <div class="topo-node-vendor" style="color:var(--muted)">Not in scan results</div>
-    </div>
-    {% endfor %}
-  </div>
-  {% endif %}
+      <div class="topo-vline"></div>
 
-  <!-- ── Branches: local network + one per remote/VPN subnet ── -->
-  <div class="topo-branches">
+      {% if gateway_hosts %}
+      <div class="topo-tier topo-tier-multi">
+        {% for gw in gateway_hosts %}
+        <a href="/host/{{ gw.id }}" class="topo-node topo-gateway" data-ip="{{ gw.ip }}">
+          <div class="topo-node-label">Gateway</div>
+          <div class="topo-node-ip">{{ gw.ip }}</div>
+          {% if gw.hostname %}<div class="topo-node-name">{{ gw.hostname }}</div>{% endif %}
+          {% if gw.vendor and gw.vendor != 'Unknown' %}<div class="topo-node-vendor">{{ gw.vendor }}</div>{% endif %}
+          <div class="topo-node-status">
+            {% if gw.host_online is not none %}
+              <span class="host-ping {{ 'host-ping-up' if gw.host_online else 'host-ping-down' }}">
+                {{ '● Online' if gw.host_online else '● Offline' }}
+              </span>
+            {% endif %}
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+      {% elif gateway_ips %}
+      <div class="topo-tier topo-tier-multi">
+        {% for ip in gateway_ips | sort %}
+        <div class="topo-node topo-gateway topo-gateway-unknown" data-ip="{{ ip }}">
+          <div class="topo-node-label">Gateway</div>
+          <div class="topo-node-ip">{{ ip }}</div>
+          <div class="topo-node-vendor" style="color:var(--muted)">Not in scan results</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
 
-    <!-- Local network branch -->
-    <div class="topo-branch">
+      <div class="topo-vline"></div>
       <div class="topo-branch-head">Local network</div>
 
       {% if infra_hosts %}
@@ -84,7 +82,7 @@
 
       <!-- Mode 1: by /24 -->
       <div class="topo-mode-view" id="topo-mode-1">
-        <div class="topo-branches topo-branches-sub">
+        <div class="topo-branches-sub">
           {% for subnet, hosts in groups_by24.items() %}
           <div class="topo-branch">
             <div class="topo-group-label">{{ subnet }}</div>
@@ -98,7 +96,7 @@
 
       <!-- Mode 2: by discovery CIDR -->
       <div class="topo-mode-view" id="topo-mode-2" style="display:none">
-        <div class="topo-branches topo-branches-sub">
+        <div class="topo-branches-sub">
           {% for cidr, hosts in groups_bycidr.items() %}
           <div class="topo-branch">
             <div class="topo-group-label">{{ cidr }}</div>
@@ -112,7 +110,7 @@
 
       <!-- Mode 3: flat -->
       <div class="topo-mode-view" id="topo-mode-3" style="display:none">
-        <div class="topo-branches topo-branches-sub">
+        <div class="topo-branches-sub">
           <div class="topo-branch">
             <div class="topo-group-nodes">
               {% for host in device_hosts %}{% include "partials/topo_node.html" %}{% endfor %}
@@ -120,27 +118,31 @@
           </div>
         </div>
       </div>
+
     </div>
 
-    <!-- Remote / VPN branches -->
-    {% for rs in remote_subnet_list %}
-    <div class="topo-branch topo-branch-remote">
-      <div class="topo-branch-head topo-branch-head-remote">
-        {{ rs.subnet }}
-        {% if rs.gateway_ip and rs.gateway_ip != 'unknown' %}
-        <span style="font-weight:400;opacity:.7"> · via {{ rs.gateway_ip }}</span>
-        {% endif %}
+    <!-- ── Remote / VPN column (hangs off the gateway's right side) ── -->
+    {% if remote_subnet_list %}
+    <div class="topo-remote-col" id="topo-remote-col">
+      {% for rs in remote_subnet_list %}
+      <div class="topo-remote-branch" data-gw="{{ rs.gateway_ip }}">
+        <div class="topo-branch-head topo-branch-head-remote topo-remote-head">
+          {{ rs.subnet }}
+          {% if rs.gateway_ip and rs.gateway_ip != 'unknown' %}
+          <span style="font-weight:400;opacity:.7"> · via {{ rs.gateway_ip }}</span>
+          {% endif %}
+        </div>
+        <div class="topo-vline topo-vline-dashed"></div>
+        <div class="topo-section-label" style="color:var(--accent)">Remote / VPN</div>
+        <div class="topo-group-nodes topo-remote-nodes">
+          {% for host in rs.hosts %}{% include "partials/topo_node.html" %}{% endfor %}
+        </div>
       </div>
-      <div class="topo-vline topo-vline-dashed"></div>
-      <div class="topo-section-label" style="color:var(--accent)">Remote / VPN</div>
-      <div class="topo-group-nodes">
-        {% for host in rs.hosts %}{% include "partials/topo_node.html" %}{% endfor %}
-      </div>
+      {% endfor %}
     </div>
-    {% endfor %}
+    {% endif %}
 
   </div>
-
 </div>
 
 <script>
@@ -152,7 +154,64 @@ function setTopoMode(m) {
     btn.classList.toggle('active', parseInt(btn.dataset.mode) === m);
   });
   try { localStorage.setItem('topoMode', m); } catch(e) {}
+  drawVpnLinks();
 }
+
+/* Draw dashed connectors from the gateway card's right edge to each
+   remote/VPN subnet pill: one horizontal run + a short drop per pill. */
+function drawVpnLinks() {
+  var tree = document.getElementById('topo-tree');
+  var col  = document.getElementById('topo-remote-col');
+  if (!tree) return;
+  tree.querySelectorAll('.topo-vpn-line').forEach(function(e) { e.remove(); });
+  if (!col) return;
+
+  if (window.innerWidth < 900) {         // stacked mobile layout — no lines
+    col.style.paddingTop = '';
+    return;
+  }
+
+  var branches = col.querySelectorAll('.topo-remote-branch');
+  if (!branches.length) return;
+
+  var want = branches[0].dataset.gw;
+  var gw = (want && tree.querySelector('.topo-gateway[data-ip="' + want + '"]'))
+           || tree.querySelector('.topo-gateway');
+  if (!gw) { col.style.paddingTop = ''; return; }
+
+  var treeR = tree.getBoundingClientRect();
+  var gwR   = gw.getBoundingClientRect();
+  var y     = gwR.top + gwR.height / 2 - treeR.top;   // exit height: middle of gateway card
+
+  // push the subnet pills just below the connector height
+  col.style.paddingTop = '';
+  var colTop = col.getBoundingClientRect().top - treeR.top;
+  col.style.paddingTop = Math.max(0, y - colTop + 24) + 'px';
+
+  var x1 = gwR.right - treeR.left;
+  var maxX = x1, drops = [];
+  branches.forEach(function(b) {
+    var head = b.querySelector('.topo-remote-head');
+    if (!head) return;
+    var hr = head.getBoundingClientRect();
+    var cx = hr.left + hr.width / 2 - treeR.left;
+    if (cx > maxX) maxX = cx;
+    drops.push({ x: cx, h: (hr.top - treeR.top) - y });
+  });
+
+  function seg(css) {
+    var d = document.createElement('div');
+    d.className = 'topo-vpn-line';
+    d.style.cssText = 'position:absolute;pointer-events:none;border-color:rgba(99,102,241,.55);' + css;
+    tree.appendChild(d);
+  }
+  seg('top:' + y + 'px;left:' + x1 + 'px;width:' + (maxX - x1) + 'px;border-top:2px dashed');
+  drops.forEach(function(d) {
+    if (d.h > 0) seg('top:' + y + 'px;left:' + (d.x - 1) + 'px;height:' + d.h + 'px;border-left:2px dashed');
+  });
+}
+
+window.addEventListener('resize', drawVpnLinks);
 var saved = parseInt(localStorage.getItem('topoMode') || '1');
 setTopoMode(saved);
 </script>

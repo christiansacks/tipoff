@@ -20,6 +20,17 @@
     <span class="rescan-idle">↺ Rescan</span>
     <span class="rescan-busy htmx-indicator">⟳ Scanning…</span>
   </button>
+  {% if host.mac and not host.hop_count %}
+  <button hx-post="/hosts/{{ host.id }}/wake"
+          hx-target="#wol-result"
+          hx-swap="innerHTML"
+          class="btn-rescan"
+          title="Send a Wake-on-LAN magic packet to {{ host.mac }}">⏻ Wake</button>
+  <span id="wol-result"></span>
+  {% endif %}
+  <a href="/monitors?host={{ host.ip }}&protocol=icmp&name={{ (host.hostname or host.ip) | urlencode }}"
+     class="btn-rescan" style="text-decoration:none"
+     title="Create an ICMP ping uptime monitor for this host">＋ Ping monitor</a>
   {% endif %}
 </div>
 
@@ -66,6 +77,29 @@
       <span class="info-value">{{ host.os_guess }}</span>
     </div>
     {% endif %}
+    {% if host.hop_count is not none %}
+    <div class="info-row">
+      <span class="info-label">Network distance</span>
+      <span class="info-value">
+        {% if host.hop_count == 0 %}Local segment{% else %}{{ host.hop_count }} hop{{ 's' if host.hop_count != 1 else '' }}{% endif %}
+        {% if host.ttl %}<span class="muted"> · TTL {{ host.ttl }}</span>{% endif %}
+        {% if host.ping_ms is not none %}<span class="muted"> · {{ '%.1f' | format(host.ping_ms) }} ms</span>{% endif %}
+      </span>
+    </div>
+    {% endif %}
+    {% if host.gateway_ip %}
+    <div class="info-row">
+      <span class="info-label">Via gateway</span>
+      <span class="info-value mono">
+        {% if gateway_host %}
+          <a href="/host/{{ gateway_host.id }}">{{ host.gateway_ip }}</a>
+          {% if gateway_host.hostname %}<span class="muted" style="font-family:inherit"> ({{ gateway_host.hostname }})</span>{% endif %}
+        {% else %}
+          {{ host.gateway_ip }}
+        {% endif %}
+      </span>
+    </div>
+    {% endif %}
     {% set all_tags = ((['VM'] if host.is_vm else []) + (['v6'] if host.ipv6_addresses else []) + (host.tags or [])) %}
     {% if all_tags %}
     <div class="info-row">
@@ -90,6 +124,24 @@
     <div class="info-row">
       <span class="info-label">Agent</span>
       <span class="info-value">{{ "Installed" if host.agent_installed else "Not installed" }}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Notes</span>
+      <span class="info-value" style="flex:1">
+        {% if readonly %}
+          {{ host.notes or '—' }}
+        {% else %}
+        <form hx-post="/hosts/{{ host.id }}/notes"
+              hx-target="#notes-status" hx-swap="innerHTML"
+              style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+          <input type="text" name="notes" value="{{ host.notes or '' }}"
+                 placeholder="e.g. NUC under the stairs — don't unplug"
+                 style="flex:1;min-width:220px">
+          <button type="submit" class="btn-sm">Save</button>
+          <span id="notes-status"></span>
+        </form>
+        {% endif %}
+      </span>
     </div>
   </div>
 </section>
@@ -174,11 +226,20 @@
   {% for p in ports %}
   {% set pkey = p.port | string %}
   {% set pstate = host.port_status[pkey] if host.port_status and pkey in host.port_status else none %}
+  {% set svc = (p.service or '') %}
+  {% set is_web = p.port in (80, 443, 8080, 8443) or 'http' in svc %}
+  {% set scheme = 'https' if (p.port in (443, 8443) or 'https' in svc or 'ssl' in svc) else 'http' %}
   <div class="port-detail-row risk-{{ p.risk }}">
     <div class="port-detail-header">
       <span class="port-ping-dot {{ 'dot-up' if pstate == true else 'dot-down' if pstate == false else 'dot-unknown' }}"
             title="{{ 'Responding' if pstate == true else 'Unreachable' if pstate == false else 'Not yet checked' }}"></span>
-      <span class="port-detail-badge">{{ p.port }}/{{ p.display_name }}</span>
+      {% if is_web %}
+        <a class="port-detail-badge" href="{{ scheme }}://{{ host.ip }}:{{ p.port }}"
+           target="_blank" rel="noopener" style="text-decoration:underline"
+           title="Open {{ scheme }}://{{ host.ip }}:{{ p.port }} in a new tab">{{ p.port }}/{{ p.display_name }} ↗</a>
+      {% else %}
+        <span class="port-detail-badge">{{ p.port }}/{{ p.display_name }}</span>
+      {% endif %}
       {% if p.risk not in ("info", "low") %}
         <span class="risk-badge risk-{{ p.risk }}">{{ p.risk }}</span>
       {% else %}
@@ -187,9 +248,16 @@
       {% if p.version %}
         <span class="port-version">{{ p.version }}</span>
       {% endif %}
-      {% if pstate == false %}
-        <span style="font-size:11px;color:var(--fail);margin-left:auto">unreachable</span>
-      {% endif %}
+      <span style="margin-left:auto;display:flex;gap:.6rem;align-items:center">
+        {% if pstate == false %}
+          <span style="font-size:11px;color:var(--fail)">unreachable</span>
+        {% endif %}
+        {% if not readonly %}
+        <a href="/monitors?host={{ host.ip }}&port={{ p.port }}&protocol={{ scheme if is_web else 'tcp' }}&name={{ ((host.hostname or host.ip) ~ ' ' ~ p.display_name) | urlencode }}"
+           class="btn-sm" style="text-decoration:none"
+           title="Create an uptime monitor for this port">＋ monitor</a>
+        {% endif %}
+      </span>
     </div>
     {% if p.description %}
       <p class="port-detail-desc">{{ p.description }}</p>

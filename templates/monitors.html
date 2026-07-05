@@ -15,25 +15,27 @@
     <div style="display:grid;grid-template-columns:2fr 2fr 120px 140px;gap:.75rem;align-items:end">
       <div class="field" style="margin:0">
         <label>Name</label>
-        <input type="text" name="name" placeholder="BBS SSH" required>
+        <input type="text" name="name" placeholder="BBS SSH" value="{{ prefill.name if prefill else '' }}" required>
       </div>
       <div class="field" style="margin:0">
         <label>Host</label>
-        <input type="text" name="host" placeholder="bbs.erb.pw" required>
+        <input type="text" name="host" placeholder="bbs.erb.pw" value="{{ prefill.host if prefill else '' }}" required>
       </div>
       <div class="field" style="margin:0" id="port-field">
         <label>Port</label>
         <input type="text" inputmode="numeric" pattern="[0-9]*" name="port" placeholder="22"
+               value="{{ prefill.port if prefill else '' }}"
                style="width:100%;-moz-appearance:textfield">
       </div>
       <div class="field" style="margin:0">
         <label>Protocol</label>
+        {% set pre_proto = prefill.protocol if prefill else 'tcp' %}
         <select name="protocol" id="protocol-select" onchange="toggleMonitorFields(this.value)"
                 style="background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:.5rem .75rem;font-size:14px;width:100%">
-          <option value="tcp">TCP</option>
-          <option value="http">HTTP</option>
-          <option value="https">HTTPS</option>
-          <option value="icmp">ICMP (ping)</option>
+          <option value="tcp"   {{ 'selected' if pre_proto == 'tcp' }}>TCP</option>
+          <option value="http"  {{ 'selected' if pre_proto == 'http' }}>HTTP</option>
+          <option value="https" {{ 'selected' if pre_proto == 'https' }}>HTTPS</option>
+          <option value="icmp"  {{ 'selected' if pre_proto == 'icmp' }}>ICMP (ping)</option>
         </select>
       </div>
     </div>
@@ -134,6 +136,7 @@ function toggleMonitorFields(protocol) {
   document.getElementById('port-field').style.display =
     protocol === 'icmp' ? 'none' : '';
 }
+toggleMonitorFields(document.getElementById('protocol-select').value);
 </script>
 
 {% endblock %}

@@ -62,7 +62,7 @@ from discovery.port_info import enrich_ports
 from license import verify_license_key, LicenseInfo, LicenseStatus
 
 # ── Version ────────────────────────────────────────────────────────────────────
-APP_VERSION     = "0.2.8"
+APP_VERSION     = "0.2.9"
 _latest_version = ""
 _update_available = False
 
@@ -1447,6 +1447,10 @@ async def host_detail(host_id: str, request: Request, db: AsyncSession = Depends
     ports = enrich_ports(host.open_ports or [])
     flagged_ports = [p for p in ports if p["risk"] in ("critical", "high")]
     all_v6 = host.ipv6_addresses or []
+    gateway_host = None
+    if host.gateway_ip:
+        gw_res = await db.execute(select(Host).where(Host.ip == host.gateway_ip))
+        gateway_host = gw_res.scalar_one_or_none()
     return _tpl("host_detail.html", {
         "request":       request,
         "host":          host,
@@ -1454,6 +1458,7 @@ async def host_detail(host_id: str, request: Request, db: AsyncSession = Depends
         "flagged_ports": flagged_ports,
         "global_v6":     [a for a in all_v6 if not a.startswith("fe80")],
         "local_v6":      [a for a in all_v6 if a.startswith("fe80")],
+        "gateway_host":  gateway_host,
     })
 
 
@@ -1486,6 +1491,39 @@ async def rescan_host_route(
     await db.commit()
 
     return HTMLResponse("", headers={"HX-Redirect": f"/host/{host_id}"})
+
+
+@app.post("/hosts/{host_id}/wake", response_class=HTMLResponse)
+async def wake_host(host_id: str, db: AsyncSession = Depends(get_db)):
+    host = await db.get(Host, host_id)
+    if not host or not host.mac:
+        return HTMLResponse('<span style="color:var(--fail);font-size:12px">No MAC address known</span>')
+    try:
+        mac_bytes = bytes.fromhex(host.mac.replace(":", "").replace("-", ""))
+        if len(mac_bytes) != 6:
+            raise ValueError("bad MAC")
+        packet = b"\xff" * 6 + mac_bytes * 16
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        sock.sendto(packet, ("255.255.255.255", 9))
+        sock.close()
+        return HTMLResponse('<span style="color:var(--pass);font-size:12px">✓ Magic packet sent</span>')
+    except Exception:
+        return HTMLResponse('<span style="color:var(--fail);font-size:12px">Failed to send packet</span>')
+
+
+@app.post("/hosts/{host_id}/notes", response_class=HTMLResponse)
+async def save_host_notes(
+    host_id: str,
+    notes: str = Form(default=""),
+    db: AsyncSession = Depends(get_db),
+):
+    host = await db.get(Host, host_id)
+    if not host:
+        return HTMLResponse("Not found", status_code=404)
+    host.notes = notes.strip() or None
+    await db.commit()
+    return HTMLResponse('<span class="muted" style="font-size:11px">Saved ✓</span>')
 
 
 @app.post("/hosts/{host_id}/wpscan", response_class=HTMLResponse)
@@ -2702,7 +2740,17 @@ async def monitors_page(request: Request, db: AsyncSession = Depends(get_db)):
         latest = latest_result.scalars().first()
         items.append({"monitor": mon, "latest": latest})
 
-    return _tpl("monitors.html", {"request": request, "items": items})
+    qp = request.query_params
+    return _tpl("monitors.html", {
+        "request": request,
+        "items":   items,
+        "prefill": {
+            "name":     qp.get("name", ""),
+            "host":     qp.get("host", ""),
+            "port":     qp.get("port", ""),
+            "protocol": qp.get("protocol", "tcp"),
+        },
+    })
 
 
 @app.post("/monitors", response_class=HTMLResponse)

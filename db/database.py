@@ -64,6 +64,7 @@ class Host(Base):
     hop_count        = Column(Integer, nullable=True)   # estimated hops from TTL
     gateway_ip       = Column(String, nullable=True)    # first traceroute hop for remote hosts
     ping_ms          = Column(Float, nullable=True)     # ICMP RTT in ms from last scan
+    notes            = Column(String, nullable=True)    # free-text user notes
 
 
 class ScanResult(Base):
@@ -205,6 +206,7 @@ async def init_db():
             "ALTER TABLE hosts ADD COLUMN hop_count INTEGER",
             "ALTER TABLE hosts ADD COLUMN gateway_ip TEXT",
             "ALTER TABLE hosts ADD COLUMN ping_ms REAL",
+            "ALTER TABLE hosts ADD COLUMN notes TEXT",
         ]:
             try:
                 await conn.execute(text(sql))

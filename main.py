@@ -62,7 +62,7 @@ from discovery.port_info import enrich_ports
 from license import verify_license_key, LicenseInfo, LicenseStatus
 
 # ── Version ────────────────────────────────────────────────────────────────────
-APP_VERSION     = "0.2.7"
+APP_VERSION     = "0.2.8"
 _latest_version = ""
 _update_available = False
 
@@ -1354,6 +1354,22 @@ async def wpscan_domain(
     })
 
 
+def _validate_discovery_cidrs(cidr_str: str) -> str | None:
+    """Return an error message if any CIDR is invalid, IPv6, or too large to sweep."""
+    for c in [c.strip() for c in cidr_str.split(",") if c.strip()]:
+        try:
+            net = ipaddress.ip_network(c, strict=False)
+        except ValueError:
+            return f"'{c}' isn't a valid CIDR range."
+        if net.version == 6:
+            return (f"'{c}' is IPv6 — sweeps are IPv4-only. IPv6 hosts are "
+                    "discovered automatically via NDP after each scan.")
+        if net.num_addresses > 65536:
+            return (f"'{c}' is too large to sweep ({net.num_addresses:,} "
+                    "addresses) — /16 is the largest supported range.")
+    return None
+
+
 @app.post("/discover", response_class=HTMLResponse)
 async def start_discovery(
     request: Request,
@@ -1361,6 +1377,12 @@ async def start_discovery(
     background_tasks: BackgroundTasks = BackgroundTasks(),
 ):
     global _discovery_cidr
+    err = _validate_discovery_cidrs(cidr)
+    if err:
+        import html as _html
+        return HTMLResponse(
+            f'<p class="empty-state" style="color:var(--fail)">{_html.escape(err)}</p>'
+        )
     if cidr != _discovery_cidr:
         _discovery_cidr = cidr
         asyncio.create_task(_save_setting("discovery_cidr", cidr))
@@ -1403,9 +1425,11 @@ async def discovery_progress(
         })
 
     if job["status"] == "error":
+        import html as _html
+        detail = job.get("error") or "Check the container logs."
         _discovery_jobs.pop(job_id, None)
         return HTMLResponse(
-            '<p class="empty-state" style="color:var(--fail)">Discovery failed. Check the container logs.</p>'
+            f'<p class="empty-state" style="color:var(--fail)">Discovery failed: {_html.escape(detail)}</p>'
         )
 
     return templates.TemplateResponse("partials/discovery_progress.html", {
@@ -1453,17 +1477,15 @@ async def rescan_host_route(
     host.flagged    = data.get("flagged", False)
     host.last_seen  = datetime.now(timezone.utc)
     host.is_vm      = data.get("is_vm", host.is_vm or False)
+    if data.get("ttl") is not None:
+        host.ttl        = data["ttl"]
+        host.hop_count  = data.get("hop_count")
+        host.gateway_ip = data.get("gateway_ip")
+    if data.get("ping_ms") is not None:
+        host.ping_ms = data["ping_ms"]
     await db.commit()
-    await db.refresh(host)
 
-    ports = enrich_ports(host.open_ports or [])
-    flagged_ports = [p for p in ports if p["risk"] in ("critical", "high")]
-    return _tpl("host_detail.html", {
-        "request": request,
-        "host": host,
-        "ports": ports,
-        "flagged_ports": flagged_ports,
-    })
+    return HTMLResponse("", headers={"HX-Redirect": f"/host/{host_id}"})
 
 
 @app.post("/hosts/{host_id}/wpscan", response_class=HTMLResponse)
@@ -1486,16 +1508,7 @@ async def wpscan_host(
     host.wp_scan_at      = datetime.now(timezone.utc)
     host.wp_scan_results = result
     await db.commit()
-    await db.refresh(host)
-
-    ports = enrich_ports(host.open_ports or [])
-    flagged_ports = [p for p in ports if p["risk"] in ("critical", "high")]
-    return _tpl("host_detail.html", {
-        "request":      request,
-        "host":         host,
-        "ports":        ports,
-        "flagged_ports": flagged_ports,
-    })
+    return HTMLResponse("", headers={"HX-Redirect": f"/host/{host_id}"})
 
 
 @app.post("/hosts/{host_id}/acknowledge", response_class=HTMLResponse)
@@ -1512,15 +1525,7 @@ async def acknowledge_host(
     host.ack_note     = ack_note.strip()
     host.ack_at       = datetime.now(timezone.utc)
     await db.commit()
-    await db.refresh(host)
-    ports = enrich_ports(host.open_ports or [])
-    flagged_ports = [p for p in ports if p["risk"] in ("critical", "high")]
-    return _tpl("host_detail.html", {
-        "request": request,
-        "host": host,
-        "ports": ports,
-        "flagged_ports": flagged_ports,
-    })
+    return HTMLResponse("", headers={"HX-Redirect": f"/host/{host_id}"})
 
 
 @app.delete("/hosts/{host_id}/acknowledge", response_class=HTMLResponse)
@@ -1536,15 +1541,7 @@ async def unacknowledge_host(
     host.ack_note     = None
     host.ack_at       = None
     await db.commit()
-    await db.refresh(host)
-    ports = enrich_ports(host.open_ports or [])
-    flagged_ports = [p for p in ports if p["risk"] in ("critical", "high")]
-    return _tpl("host_detail.html", {
-        "request": request,
-        "host": host,
-        "ports": ports,
-        "flagged_ports": flagged_ports,
-    })
+    return HTMLResponse("", headers={"HX-Redirect": f"/host/{host_id}"})
 
 
 @app.delete("/hosts/{host_id}", response_class=HTMLResponse)
@@ -1826,6 +1823,10 @@ async def update_discovery_schedule(
     days: list[str] = Form(default=[]),
 ):
     global _discovery_cidr, _lan_scan_time, _lan_scan_days
+    err = _validate_discovery_cidrs(cidr)
+    if err:
+        import html as _html
+        return HTMLResponse(f'<div class="toast error">{_html.escape(err)}</div>')
     _discovery_cidr = cidr.strip()
     _lan_scan_time  = time.strip() or "03:00"
     _lan_scan_days  = ",".join(days)
@@ -2222,6 +2223,9 @@ async def _run_discovery_job(job_id: str, cidr: str):
     from db.database import SessionLocal
     job = _discovery_jobs[job_id]
     try:
+        err = _validate_discovery_cidrs(cidr)
+        if err:
+            raise ValueError(err)
         cidrs = [c.strip() for c in cidr.split(",") if c.strip()]
         seen: dict[str, dict] = {}
         for idx, c in enumerate(cidrs):

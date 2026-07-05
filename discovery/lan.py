@@ -79,6 +79,18 @@ async def _ping(ip: str) -> tuple[str | None, int | None, float | None]:
 
 async def ping_sweep(cidr: str) -> list[tuple[str, int | None, float | None]]:
     network = ipaddress.ip_network(cidr, strict=False)
+    # Guard against sweeping ranges that can't be enumerated: an IPv6 /64 is
+    # 2^64 addresses and will exhaust all memory building the task list.
+    if network.version == 6:
+        raise ValueError(
+            f"{cidr}: IPv6 ranges can't be swept — IPv6 hosts are discovered "
+            "via NDP neighbor discovery after each IPv4 scan"
+        )
+    if network.num_addresses > 65536:
+        raise ValueError(
+            f"{cidr}: range too large to sweep ({network.num_addresses:,} "
+            "addresses) — /16 is the largest supported"
+        )
     sem = asyncio.Semaphore(100)
 
     async def _ping_limited(ip: str):

@@ -157,7 +157,7 @@
             <label>CIDR range to scan</label>
             <input type="text" name="cidr" value="{{ discovery_cidr }}"
                    placeholder="e.g. 192.168.0.0/24, 192.168.1.0/24" style="font-family:monospace;max-width:380px">
-            <span class="field-hint">Comma-separate multiple ranges. Automatically saved when you run a manual discover.</span>
+            <span class="field-hint">Comma-separate multiple ranges. IPv4 only, /16 or smaller — IPv6 hosts are found automatically via NDP after each scan. Saved when you run a manual discover.</span>
           </div>
           <div class="field">
             <label>Scan time</label>

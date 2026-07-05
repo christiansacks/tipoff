@@ -316,7 +316,7 @@ async def rescan_host(ip: str) -> dict:
     _, ttl    = await _ping(ip)
     hop_count = _hop_count_from_ttl(ttl) if ttl is not None else None
     gateway_ip = None
-    if hop_count is not None and hop_count >= 2:
+    if hop_count is not None and hop_count >= 1:
         gateway_ip = await _traceroute_first_hop(ip)
     result["ttl"]        = ttl
     result["hop_count"]  = hop_count
@@ -360,7 +360,7 @@ async def discover_network(cidr: str, progress: dict | None = None) -> list[dict
             ttl       = ttl_map.get(ip)
             hop_count = _hop_count_from_ttl(ttl) if ttl is not None else None
             gateway_ip = None
-            if hop_count is not None and hop_count >= 2:
+            if hop_count is not None and hop_count >= 1:
                 gateway_ip = await _traceroute_first_hop(ip)
             result["ttl"]        = ttl
             result["hop_count"]  = hop_count

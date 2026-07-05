@@ -62,7 +62,7 @@ from discovery.port_info import enrich_ports
 from license import verify_license_key, LicenseInfo, LicenseStatus
 
 # ── Version ────────────────────────────────────────────────────────────────────
-APP_VERSION     = "0.2.3"
+APP_VERSION     = "0.2.4"
 _latest_version = ""
 _update_available = False
 
@@ -2411,7 +2411,7 @@ async def topology_page(request: Request, db: AsyncSession = Depends(get_db)):
             gateway_hosts.append(host)
         elif cls == "infrastructure":
             infra_hosts.append(host)
-        elif (host.hop_count or 0) >= 2:
+        elif (host.hop_count or 0) >= 1:
             remote_hosts.append(host)
         else:
             device_hosts.append(host)
@@ -2430,15 +2430,14 @@ async def topology_page(request: Request, db: AsyncSession = Depends(get_db)):
         groups_by24[_slash24(h.ip)].append(h)
         groups_bycidr[_containing_cidr(h.ip, cidrs)].append(h)
 
-    # Group remote hosts by (gateway_ip, /24 subnet)
-    _remote_map: dict[tuple, list] = defaultdict(list)
+    # Group remote hosts by /24 subnet; label with the first known gateway
+    _remote_map: dict[str, list] = defaultdict(list)
     for h in remote_hosts:
-        key = (h.gateway_ip or "unknown", _slash24(h.ip))
-        _remote_map[key].append(h)
-    remote_subnet_list = [
-        {"gateway_ip": k[0], "subnet": k[1], "hosts": v}
-        for k, v in sorted(_remote_map.items())
-    ]
+        _remote_map[_slash24(h.ip)].append(h)
+    remote_subnet_list = []
+    for subnet, hs in sorted(_remote_map.items()):
+        gw = next((h.gateway_ip for h in hs if h.gateway_ip), "unknown")
+        remote_subnet_list.append({"gateway_ip": gw, "subnet": subnet, "hosts": hs})
 
     return _tpl("topology.html", {
         "request":            request,

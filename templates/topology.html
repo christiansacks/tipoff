@@ -49,93 +49,97 @@
   </div>
   {% endif %}
 
-  <!-- ── Infrastructure ── -->
-  {% if infra_hosts %}
-  <div class="topo-vline"></div>
-  <div class="topo-section-label">Infrastructure</div>
-  <div class="topo-tier topo-tier-multi">
-    {% for host in infra_hosts %}
-    <a href="/host/{{ host.id }}" class="topo-node topo-infra {{ 'topo-flagged' if host.flagged and not host.acknowledged else 'topo-acked' if host.flagged and host.acknowledged else '' }}">
-      <div class="topo-node-ip">{{ host.ip }}</div>
-      {% if host.hostname %}<div class="topo-node-name">{{ host.hostname }}</div>{% endif %}
-      {% if host.vendor and host.vendor != 'Unknown' %}<div class="topo-node-vendor">{{ host.vendor }}</div>{% endif %}
-      <div class="topo-node-status">
-        {% if host.host_online is not none %}
-          <span class="host-ping {{ 'host-ping-up' if host.host_online else 'host-ping-down' }}">
-            {{ '● Online' if host.host_online else '● Offline' }}
-          </span>
-        {% endif %}
-        {% if host.flagged and host.acknowledged %}<span class="badge ack" style="font-size:10px">✓ Ack'd</span>
-        {% elif host.flagged %}<span class="badge fail" style="font-size:10px">Flagged</span>{% endif %}
+  <!-- ── Branches: local network + one per remote/VPN subnet ── -->
+  <div class="topo-branches">
+
+    <!-- Local network branch -->
+    <div class="topo-branch">
+      <div class="topo-branch-head">Local network</div>
+
+      {% if infra_hosts %}
+      <div class="topo-vline"></div>
+      <div class="topo-section-label">Infrastructure</div>
+      <div class="topo-tier topo-tier-multi">
+        {% for host in infra_hosts %}
+        <a href="/host/{{ host.id }}" class="topo-node topo-infra {{ 'topo-flagged' if host.flagged and not host.acknowledged else 'topo-acked' if host.flagged and host.acknowledged else '' }}">
+          <div class="topo-node-ip">{{ host.ip }}</div>
+          {% if host.hostname %}<div class="topo-node-name">{{ host.hostname }}</div>{% endif %}
+          {% if host.vendor and host.vendor != 'Unknown' %}<div class="topo-node-vendor">{{ host.vendor }}</div>{% endif %}
+          <div class="topo-node-status">
+            {% if host.host_online is not none %}
+              <span class="host-ping {{ 'host-ping-up' if host.host_online else 'host-ping-down' }}">
+                {{ '● Online' if host.host_online else '● Offline' }}
+              </span>
+            {% endif %}
+            {% if host.flagged and host.acknowledged %}<span class="badge ack" style="font-size:10px">✓ Ack'd</span>
+            {% elif host.flagged %}<span class="badge fail" style="font-size:10px">Flagged</span>{% endif %}
+          </div>
+        </a>
+        {% endfor %}
       </div>
-    </a>
-    {% endfor %}
-  </div>
-  {% endif %}
+      {% endif %}
 
-  <!-- ── Devices ── -->
-  <div class="topo-vline"></div>
-  <div class="topo-section-label">Devices</div>
+      <div class="topo-vline"></div>
+      <div class="topo-section-label">Devices</div>
 
-  <!-- Mode 1: by /24 -->
-  <div class="topo-mode-view" id="topo-mode-1">
-    <div class="topo-groups">
-      {% for subnet, hosts in groups_by24.items() %}
-      <div class="topo-group">
-        <div class="topo-group-label">{{ subnet }}</div>
-        <div class="topo-group-nodes">
-          {% for host in hosts %}{% include "partials/topo_node.html" %}{% endfor %}
+      <!-- Mode 1: by /24 -->
+      <div class="topo-mode-view" id="topo-mode-1">
+        <div class="topo-branches topo-branches-sub">
+          {% for subnet, hosts in groups_by24.items() %}
+          <div class="topo-branch">
+            <div class="topo-group-label">{{ subnet }}</div>
+            <div class="topo-group-nodes">
+              {% for host in hosts %}{% include "partials/topo_node.html" %}{% endfor %}
+            </div>
+          </div>
+          {% endfor %}
         </div>
       </div>
-      {% endfor %}
-    </div>
-  </div>
 
-  <!-- Mode 2: by discovery CIDR -->
-  <div class="topo-mode-view" id="topo-mode-2" style="display:none">
-    <div class="topo-groups">
-      {% for cidr, hosts in groups_bycidr.items() %}
-      <div class="topo-group">
-        <div class="topo-group-label">{{ cidr }}</div>
-        <div class="topo-group-nodes">
-          {% for host in hosts %}{% include "partials/topo_node.html" %}{% endfor %}
+      <!-- Mode 2: by discovery CIDR -->
+      <div class="topo-mode-view" id="topo-mode-2" style="display:none">
+        <div class="topo-branches topo-branches-sub">
+          {% for cidr, hosts in groups_bycidr.items() %}
+          <div class="topo-branch">
+            <div class="topo-group-label">{{ cidr }}</div>
+            <div class="topo-group-nodes">
+              {% for host in hosts %}{% include "partials/topo_node.html" %}{% endfor %}
+            </div>
+          </div>
+          {% endfor %}
         </div>
       </div>
-      {% endfor %}
-    </div>
-  </div>
 
-  <!-- Mode 3: flat -->
-  <div class="topo-mode-view" id="topo-mode-3" style="display:none">
-    <div class="topo-groups">
-      <div class="topo-group">
-        <div class="topo-group-nodes">
-          {% for host in device_hosts %}{% include "partials/topo_node.html" %}{% endfor %}
+      <!-- Mode 3: flat -->
+      <div class="topo-mode-view" id="topo-mode-3" style="display:none">
+        <div class="topo-branches topo-branches-sub">
+          <div class="topo-branch">
+            <div class="topo-group-nodes">
+              {% for host in device_hosts %}{% include "partials/topo_node.html" %}{% endfor %}
+            </div>
+          </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- ── Remote / VPN ── -->
-  {% if remote_subnet_list %}
-  <div class="topo-vline topo-vline-dashed"></div>
-  <div class="topo-section-label" style="color:var(--accent)">Remote / VPN</div>
-  <div class="topo-groups">
+    <!-- Remote / VPN branches -->
     {% for rs in remote_subnet_list %}
-    <div class="topo-group topo-group-remote">
-      <div class="topo-group-label topo-group-label-remote">
+    <div class="topo-branch topo-branch-remote">
+      <div class="topo-branch-head topo-branch-head-remote">
         {{ rs.subnet }}
         {% if rs.gateway_ip and rs.gateway_ip != 'unknown' %}
-        <span class="muted" style="font-weight:400"> via {{ rs.gateway_ip }}</span>
+        <span style="font-weight:400;opacity:.7"> · via {{ rs.gateway_ip }}</span>
         {% endif %}
       </div>
+      <div class="topo-vline topo-vline-dashed"></div>
+      <div class="topo-section-label" style="color:var(--accent)">Remote / VPN</div>
       <div class="topo-group-nodes">
         {% for host in rs.hosts %}{% include "partials/topo_node.html" %}{% endfor %}
       </div>
     </div>
     {% endfor %}
+
   </div>
-  {% endif %}
 
 </div>
 

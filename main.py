@@ -62,7 +62,7 @@ from discovery.port_info import enrich_ports
 from license import verify_license_key, LicenseInfo, LicenseStatus
 
 # ── Version ────────────────────────────────────────────────────────────────────
-APP_VERSION     = "0.2.5"
+APP_VERSION     = "0.2.6"
 _latest_version = ""
 _update_available = False
 
@@ -2437,7 +2437,20 @@ async def topology_page(request: Request, db: AsyncSession = Depends(get_db)):
     remote_subnet_list = []
     for subnet, hs in sorted(_remote_map.items()):
         gw = next((h.gateway_ip for h in hs if h.gateway_ip), "unknown")
-        remote_subnet_list.append({"gateway_ip": gw, "subnet": subnet, "hosts": hs})
+        # Peer inference: if exactly one host is a full hop closer than all the
+        # others, it's almost certainly the subnet's router/VPN peer — promote it
+        # and hang the rest underneath. Anything messier falls back to flat.
+        peer, children = None, hs
+        if len(hs) > 1 and all(h.hop_count is not None for h in hs):
+            min_hops = min(h.hop_count for h in hs)
+            closest  = [h for h in hs if h.hop_count == min_hops]
+            rest     = [h for h in hs if h.hop_count != min_hops]
+            if len(closest) == 1 and all(h.hop_count == min_hops + 1 for h in rest):
+                peer, children = closest[0], rest
+        remote_subnet_list.append({
+            "gateway_ip": gw, "subnet": subnet,
+            "peer": peer, "children": children,
+        })
 
     return _tpl("topology.html", {
         "request":            request,

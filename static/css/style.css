@@ -1491,6 +1491,11 @@ main:has(.topo-tree) { max-width: none; }
   max-width: 400px;
   justify-content: center;
 }
+.topo-vpn-peer {
+  border: 1px dashed rgba(99,102,241,.5);
+  background: rgba(99,102,241,.06);
+  min-width: 160px;
+}
 
 /* branch head pill */
 .topo-branch-head {

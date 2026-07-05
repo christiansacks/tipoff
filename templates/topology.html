@@ -134,8 +134,30 @@
         </div>
         <div class="topo-vline topo-vline-dashed"></div>
         <div class="topo-section-label" style="color:var(--accent)">Remote / VPN</div>
+
+        {% if rs.peer %}
+        {% set peer = rs.peer %}
+        <a href="/host/{{ peer.id }}" class="topo-node topo-vpn-peer">
+          <div class="topo-node-label">VPN Peer</div>
+          <div class="topo-node-ip">{{ peer.ip }}</div>
+          {% if peer.hostname %}<div class="topo-node-name">{{ peer.hostname }}</div>{% endif %}
+          {% if peer.vendor and peer.vendor != 'Unknown' %}<div class="topo-node-vendor">{{ peer.vendor }}</div>{% endif %}
+          <div class="topo-node-tags">
+            {% if peer.hop_count %}<span class="host-tag-chip host-tag-hop" style="font-size:9px;padding:0 4px" title="TTL {{ peer.ttl }}">{{ peer.hop_count }} hop{{ 's' if peer.hop_count > 1 else '' }}</span>{% endif %}
+          </div>
+          <div class="topo-node-status">
+            {% if peer.host_online is not none %}
+              <span class="host-ping {{ 'host-ping-up' if peer.host_online else 'host-ping-down' }}">
+                {{ '● Online' if peer.host_online else '● Offline' }}
+              </span>
+            {% endif %}
+          </div>
+        </a>
+        <div class="topo-vline topo-vline-dashed"></div>
+        {% endif %}
+
         <div class="topo-group-nodes topo-remote-nodes">
-          {% for host in rs.hosts %}{% include "partials/topo_node.html" %}{% endfor %}
+          {% for host in rs.children %}{% include "partials/topo_node.html" %}{% endfor %}
         </div>
       </div>
       {% endfor %}

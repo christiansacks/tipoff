@@ -68,9 +68,6 @@
     </div>
 
     <div class="host-footer">
-      <span class="agent-status">
-        {% if host.agent_installed %}Agent: active{% else %}No agent{% endif %}
-      </span>
       <span class="last-seen">Seen: {{ host.last_seen.strftime("%d %b %H:%M") }}</span>
     </div>
     {% if not readonly %}

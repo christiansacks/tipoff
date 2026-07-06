@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header">
+  <a href="/" class="back">← Dashboard</a>
+  <h1>Upcoming Events</h1>
+</div>
+
+<section class="card">
+  <p class="muted-text" style="font-size:13px;margin:0 0 1rem 0">
+    Domain registration and SSL certificate expiries, soonest first — so you can renew before it's urgent.
+  </p>
+
+  {% if not events %}
+    <p class="empty-state">Nothing tracked yet — add a domain to see its registration and SSL expiry here.</p>
+  {% else %}
+    {% for e in events %}
+    <div class="result-row {{ e.status }}" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+      <div>
+        <div class="result-title">
+          <a href="/domain/{{ e.domain_id }}" style="color:inherit">{{ e.hostname }}</a>
+          <span class="muted-text" style="font-weight:400;font-size:12px">— {{ e.kind }}</span>
+          {% if e.manual %}<span class="badge" title="Entered manually — not detectable via WHOIS">manual</span>{% endif %}
+        </div>
+        <div class="result-detail">
+          {% if e.expiry %}Expires {{ e.expiry }}{% endif %}
+        </div>
+      </div>
+      <div>
+        {% if e.days_left < 0 %}
+          <span class="badge fail">Expired {{ -e.days_left }} day{{ 's' if -e.days_left != 1 else '' }} ago</span>
+        {% else %}
+          <span class="badge {{ 'fail' if e.status == 'fail' else ('warn' if e.status == 'warn' else 'pass') }}">
+            {{ e.days_left }} day{{ 's' if e.days_left != 1 else '' }} left
+          </span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  {% endif %}
+</section>
+
+{% endblock %}

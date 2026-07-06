@@ -15,6 +15,7 @@ async def check_ssl(domain: str) -> list[CheckResult]:
 
         expiry = datetime.datetime.strptime(cert["notAfter"], "%b %d %H:%M:%S %Y %Z")
         days_left = (expiry - datetime.datetime.utcnow()).days
+        expiry_str = expiry.strftime("%d %b %Y")
 
         if days_left < 0:
             results.append(CheckResult(
@@ -24,7 +25,7 @@ async def check_ssl(domain: str) -> list[CheckResult]:
                 detail=f"Your SSL certificate expired {abs(days_left)} days ago. Visitors see a browser security warning.",
                 remediation="Renew your SSL certificate immediately. Let's Encrypt is free and auto-renews.",
                 score_impact=15,
-                raw={"days_left": days_left},
+                raw={"days_left": days_left, "expiry": expiry_str},
             ))
         elif days_left < 14:
             results.append(CheckResult(
@@ -34,7 +35,7 @@ async def check_ssl(domain: str) -> list[CheckResult]:
                 detail=f"Your SSL certificate expires in {days_left} days.",
                 remediation="Renew your SSL certificate before it expires.",
                 score_impact=8,
-                raw={"days_left": days_left},
+                raw={"days_left": days_left, "expiry": expiry_str},
             ))
         else:
             results.append(CheckResult(
@@ -44,7 +45,7 @@ async def check_ssl(domain: str) -> list[CheckResult]:
                 detail=f"Valid. Expires in {days_left} days.",
                 remediation="",
                 score_impact=0,
-                raw={"days_left": days_left},
+                raw={"days_left": days_left, "expiry": expiry_str},
             ))
 
         if tls_version in ("TLSv1", "TLSv1.1"):

@@ -138,6 +138,9 @@
           {% if rs.likely_vpn %}
           <span class="host-tag-chip" style="font-size:9px;padding:0 5px;margin-left:.35rem;text-transform:none;letter-spacing:0" title="Hosts here answer far slower than your local LAN — this link is probably a VPN tunnel or WAN circuit rather than a local segment">likely VPN/WAN</span>
           {% endif %}
+          {% if rs.dual_reachable %}
+          <span class="host-tag-chip" style="font-size:9px;padding:0 5px;margin-left:.35rem;text-transform:none;letter-spacing:0;background:rgba(245,158,11,.15);color:var(--warn)" title="This same range also appears as a directly-attached local group — some host likely bridges both segments (a second NIC or a router). Fine for a homelab, worth checking on a network that expects segmentation.">also seen locally ⚠</span>
+          {% endif %}
         </div>
 
         {% if rs.peer %}
@@ -170,6 +173,23 @@
     {% endif %}
 
   </div>
+
+  {% if groups_v6 %}
+  <div class="topo-v6-section">
+    <div class="topo-section-label">IPv6 segments</div>
+    <div class="topo-branches-sub" style="flex-wrap:wrap">
+      {% for prefix, hosts in groups_v6.items() %}
+      <div class="topo-branch" style="padding-top:0">
+        <div class="topo-group-label" style="font-family:monospace">{{ prefix }}</div>
+        <div class="topo-group-nodes">
+          {% for host in hosts %}{% include "partials/topo_node.html" %}{% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
 </div>
 
 <script>

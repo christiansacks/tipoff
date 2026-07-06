@@ -1529,10 +1529,12 @@ main:has(.topo-tree) { max-width: none; }
 /* ── Subnet group branches under Devices (family-tree rails) ──────── */
 .topo-branches-sub {
   display: flex;
-  justify-content: center;
+  justify-content: safe center;
   align-items: flex-start;
   flex-wrap: nowrap;
   width: 100%;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
 }
 .topo-branch {
   position: relative;
@@ -1589,4 +1591,21 @@ main:has(.topo-tree) { max-width: none; }
   flex-wrap: wrap;
   gap: 0.6rem;
   justify-content: center;
+}
+
+/* ── IPv6 segments — an orthogonal address-family view, not a branch of
+   the topology tree, so it gets no rail/stub connector lines ──────── */
+.topo-v6-section {
+  width: 100%;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+.topo-v6-section .topo-branch::before,
+.topo-v6-section .topo-branch::after {
+  display: none;
 }

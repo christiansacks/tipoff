@@ -62,7 +62,7 @@ from discovery.port_info import enrich_ports
 from license import verify_license_key, LicenseInfo, LicenseStatus
 
 # ── Version ────────────────────────────────────────────────────────────────────
-APP_VERSION     = "0.2.11"
+APP_VERSION     = "0.2.12"
 _latest_version = ""
 _update_available = False
 
@@ -810,6 +810,14 @@ scheduler = AsyncIOScheduler()
 _discovery_jobs: dict[str, dict] = {}
 
 
+def _parent_domain_hostname(hostname: str, all_hostnames: list[str]) -> str | None:
+    """If hostname is a subdomain of another monitored domain, return that domain's hostname."""
+    for other in all_hostnames:
+        if other != hostname and hostname.endswith("." + other):
+            return other
+    return None
+
+
 async def run_due_scans():
     from db.database import SessionLocal
     async with SessionLocal() as db:
@@ -818,15 +826,19 @@ async def run_due_scans():
             select(Domain).where(Domain.next_scan_at <= now)
         )
         domains = result.scalars().all()
+        all_hostnames = [d.hostname for d in (await db.execute(select(Domain))).scalars().all()]
         for domain in domains:
             try:
                 print(f"Scanning {domain.hostname}…")
                 if domain.monitor_web is None:
                     domain.monitor_web = await _detect_monitor_web(domain.hostname)
+                is_subdomain = _parent_domain_hostname(domain.hostname, all_hostnames) is not None
                 results, has_mx = await scan_domain(
                     domain.hostname,
                     monitor_web=domain.monitor_web,
                     check_mail=domain.check_mail is not False,
+                    is_subdomain=is_subdomain,
+                    manual_expiry=domain.manual_expiry_date,
                 )
                 domain.has_mx = has_mx
                 await db.execute(
@@ -1074,6 +1086,19 @@ def _containing_cidr(ip: str, cidrs: list[str]) -> str:
         for cidr in cidrs:
             if addr in ipaddress.ip_network(cidr, strict=False):
                 return cidr
+
+        # No configured range covers this address. If a configured range is a
+        # smaller block within the same /24 (e.g. 10.1.3.0/25), don't lump the
+        # rest of the /24 into one bucket that visually overlaps that sibling
+        # — compute the actual complementary block of the same prefix length
+        # (e.g. 10.1.3.128/25) instead.
+        slash24 = ipaddress.ip_network(_slash24(ip))
+        for cidr in cidrs:
+            net = ipaddress.ip_network(cidr, strict=False)
+            if net.prefixlen > 24 and net.subnet_of(slash24):
+                for sub in slash24.subnets(new_prefix=net.prefixlen):
+                    if addr in sub:
+                        return str(sub)
     except Exception:
         pass
     return _slash24(ip)
@@ -1237,6 +1262,12 @@ async def _render_domain_detail(domain_id: str, request: Request, db: AsyncSessi
     passes = [r for r in results if r.status == "pass"]
     acked  = [r for r in results if r.status in ("fail", "warn") and r.check_id in acked_ids]
     score  = _score_from_rows(results)
+    all_hostnames = [d.hostname for d in (await db.execute(select(Domain))).scalars().all()]
+    parent_hostname = _parent_domain_hostname(domain.hostname, all_hostnames)
+    parent_domain = None
+    if parent_hostname:
+        parent_result = await db.execute(select(Domain).where(Domain.hostname == parent_hostname))
+        parent_domain = parent_result.scalar_one_or_none()
     return _tpl("domain_detail.html", {
         "request": request,
         "domain":  domain,
@@ -1245,6 +1276,7 @@ async def _render_domain_detail(domain_id: str, request: Request, db: AsyncSessi
         "passes":  passes,
         "acked":   acked,
         "score":   score,
+        "parent_domain": parent_domain,
     })
 
 
@@ -1328,6 +1360,29 @@ async def set_domain_flags(
         return HTMLResponse("Not found", status_code=404)
     domain.monitor_web = monitor_web == "on"
     domain.check_mail  = check_mail == "on"
+    await db.commit()
+    background_tasks.add_task(_scan_and_store, domain.hostname)
+    return HTMLResponse('<span class="muted" style="font-size:11px">Saved — rescanning ✓</span>')
+
+
+@app.post("/domains/{domain_id}/expiry", response_class=HTMLResponse)
+async def set_domain_manual_expiry(
+    domain_id: str,
+    manual_expiry_date: str = Form(default=""),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    db: AsyncSession = Depends(get_db),
+):
+    domain = await db.get(Domain, domain_id)
+    if not domain:
+        return HTMLResponse("Not found", status_code=404)
+    value = manual_expiry_date.strip()
+    if value:
+        try:
+            domain.manual_expiry_date = datetime.strptime(value, "%Y-%m-%d")
+        except ValueError:
+            return HTMLResponse('<span class="muted" style="font-size:11px;color:var(--fail)">Invalid date</span>')
+    else:
+        domain.manual_expiry_date = None
     await db.commit()
     background_tasks.add_task(_scan_and_store, domain.hostname)
     return HTMLResponse('<span class="muted" style="font-size:11px">Saved — rescanning ✓</span>')
@@ -2421,10 +2476,14 @@ async def _scan_and_store(hostname: str):
         try:
             if domain.monitor_web is None:
                 domain.monitor_web = await _detect_monitor_web(hostname)
+            all_hostnames = [d.hostname for d in (await db.execute(select(Domain))).scalars().all()]
+            is_subdomain = _parent_domain_hostname(hostname, all_hostnames) is not None
             results, has_mx = await scan_domain(
                 hostname,
                 monitor_web=domain.monitor_web,
                 check_mail=domain.check_mail is not False,
+                is_subdomain=is_subdomain,
+                manual_expiry=domain.manual_expiry_date,
             )
             domain.has_mx = has_mx
             await db.execute(delete(ScanResult).where(
@@ -2566,11 +2625,43 @@ async def topology_page(request: Request, db: AsyncSession = Depends(get_db)):
             rest     = [h for h in hs if h.hop_count != min_hops]
             if len(closest) == 1 and all(h.hop_count == min_hops + 1 for h in rest):
                 peer, children = closest[0], rest
+        # Dual-reachability check: does this same range also appear as a
+        # directly-attached local group? That means some host answers on
+        # this subnet with zero hops while others need routing — usually a
+        # multi-homed device bridging two segments. Fine for a homelab;
+        # worth a second look on a network that expects segmentation.
+        dual_reachable = False
+        try:
+            remote_net = ipaddress.ip_network(subnet, strict=False)
+            for local_key in list(groups_by24.keys()) + list(groups_bycidr.keys()):
+                local_net = ipaddress.ip_network(local_key, strict=False)
+                if local_net.overlaps(remote_net):
+                    dual_reachable = True
+                    break
+        except Exception:
+            pass
+
         remote_subnet_list.append({
             "gateway_ip": gw, "subnet": subnet,
             "peer": peer, "children": children,
             "likely_vpn": likely_vpn,
+            "dual_reachable": dual_reachable,
         })
+
+    # IPv6 segments — group hosts by discovered /64 prefix (from NDP), skip
+    # link-local addresses since every host has one and it's not a segment.
+    groups_v6 = defaultdict(list)
+    for h in (gateway_hosts + infra_hosts + device_hosts + remote_hosts):
+        for addr in (h.ipv6_addresses or []):
+            try:
+                ip6 = ipaddress.IPv6Address(addr)
+                if ip6.is_link_local:
+                    continue
+                prefix = str(ipaddress.ip_network(f"{addr}/64", strict=False))
+            except Exception:
+                continue
+            if h not in groups_v6[prefix]:
+                groups_v6[prefix].append(h)
 
     return _tpl("topology.html", {
         "request":            request,
@@ -2581,6 +2672,7 @@ async def topology_page(request: Request, db: AsyncSession = Depends(get_db)):
         "groups_by24":        dict(sorted(groups_by24.items())),
         "groups_bycidr":      dict(sorted(groups_bycidr.items())),
         "remote_subnet_list": remote_subnet_list,
+        "groups_v6":          dict(sorted(groups_v6.items())),
     })
 
 
@@ -2649,6 +2741,47 @@ async def toggle_public_status(domain_id: str, request: Request, db: AsyncSessio
         f'title="{"Remove from" if enabled else "Add to"} public status page">'
         f'{"Public ✓" if enabled else "Public"}</button>'
     )
+
+
+@app.get("/events", response_class=HTMLResponse)
+async def events_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Upcoming domain-registration and SSL-certificate expiries, soonest first."""
+    domains = (await db.execute(select(Domain))).scalars().all()
+    events = []
+    for d in domains:
+        scan_rows = (await db.execute(
+            select(ScanResult).where(ScanResult.domain_id == d.id)
+        )).scalars().all()
+        by_id = {r.check_id: r for r in scan_rows}
+
+        for check_id in ("domain_expired", "domain_expiring_soon", "domain_renewal_due", "domain_expiry_ok"):
+            r = by_id.get(check_id)
+            if r and r.raw and "days_left" in r.raw:
+                events.append({
+                    "hostname":   d.hostname, "domain_id": d.id,
+                    "kind":       "Domain registration",
+                    "status":     r.status,
+                    "days_left":  r.raw["days_left"],
+                    "expiry":     r.raw.get("expiry"),
+                    "manual":     r.raw.get("source") == "manual",
+                })
+                break
+
+        for check_id in ("ssl_expired", "ssl_expiring_soon", "ssl_valid"):
+            r = by_id.get(check_id)
+            if r and r.raw and "days_left" in r.raw:
+                events.append({
+                    "hostname":   d.hostname, "domain_id": d.id,
+                    "kind":       "SSL certificate",
+                    "status":     r.status,
+                    "days_left":  r.raw["days_left"],
+                    "expiry":     r.raw.get("expiry"),
+                    "manual":     False,
+                })
+                break
+
+    events.sort(key=lambda e: e["days_left"])
+    return _tpl("events.html", {"request": request, "events": events})
 
 
 @app.get("/status", response_class=HTMLResponse)

@@ -16,6 +16,9 @@
   {% if domain.monitor_web is sameas false %}
     <span class="badge" title="Website monitoring is off — uptime is checked via DNS resolution instead">mail/DNS only</span>
   {% endif %}
+  {% if parent_domain %}
+    <span class="badge" title="Registration expiry is tracked under the parent domain">subdomain of <a href="/domain/{{ parent_domain.id }}" style="color:inherit">{{ parent_domain.hostname }}</a></span>
+  {% endif %}
 </div>
 
 {% if not readonly %}
@@ -31,15 +34,50 @@
       <input type="checkbox" name="check_mail" {% if domain.check_mail is not sameas false %}checked{% endif %}>
       Mail security (SPF, DMARC, DKIM)
       {% if domain.has_mx is sameas true %}<span class="badge pass" title="MX records found — this domain receives mail">MX ✓</span>
+      {% elif domain.has_mx is sameas false and parent_domain %}<span class="badge" title="No mail server at this subdomain — spoofing protection is the parent domain's job, so this check is skipped">not required (subdomain)</span>
       {% elif domain.has_mx is sameas false %}<span class="badge" title="No MX records — missing SPF/DMARC is treated as low-priority housekeeping">no MX</span>{% endif %}
     </label>
     <button type="submit" class="btn-sm">Save</button>
     <span id="flags-status"></span>
   </form>
   <p class="muted-text" style="font-size:11px;margin-top:.5rem;margin-bottom:0">
-    Detected automatically when the domain was added — DNS and expiry checks always run.
+    Detected automatically when the domain was added — DNS checks always run.
     With website off, uptime becomes a DNS-resolves check.
   </p>
+</section>
+{% endif %}
+
+{% if not parent_domain %}
+{% set exp = namespace(result=none) %}
+{% for r in (fails + warns + passes + acked) %}
+  {% if r.check_id in ('domain_expired','domain_expiring_soon','domain_renewal_due','domain_expiry_ok','domain_expiry_unknown','domain_expiry_error') and exp.result is none %}
+    {% set exp.result = r %}
+  {% endif %}
+{% endfor %}
+{% set auto_unknown = (not exp.result) or (exp.result.check_id in ('domain_expiry_unknown', 'domain_expiry_error')) %}
+<section class="card">
+  <h2 class="section-title" style="margin-bottom:.5rem">Domain expiry</h2>
+  {% if exp.result and not auto_unknown %}
+    <p class="muted-text" style="font-size:13px;margin:0 0 .5rem 0">{{ exp.result.detail }}</p>
+  {% endif %}
+  {% if auto_unknown %}
+    <p class="muted-text" style="font-size:13px;margin:0 0 .75rem 0">
+      Couldn't detect an expiry date automatically{% if exp.result %} ({{ exp.result.detail }}){% endif %} —
+      some registries (e.g. .au) don't publish one via WHOIS at all.
+    </p>
+  {% endif %}
+  {% if (auto_unknown or domain.manual_expiry_date) and not readonly %}
+    <form hx-post="/domains/{{ domain.id }}/expiry" hx-target="#expiry-status" hx-swap="innerHTML"
+          style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:.4rem;font-size:13px">
+        When does it expire?
+        <input type="date" name="manual_expiry_date"
+               value="{{ domain.manual_expiry_date.strftime('%Y-%m-%d') if domain.manual_expiry_date else '' }}">
+      </label>
+      <button type="submit" class="btn-sm">Save</button>
+      <span id="expiry-status"></span>
+    </form>
+  {% endif %}
 </section>
 {% endif %}
 

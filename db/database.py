@@ -33,6 +33,7 @@ class Domain(Base):
     monitor_web       = Column(Boolean, nullable=True)  # None = auto-detect on next scan
     check_mail        = Column(Boolean, default=True)
     has_mx            = Column(Boolean, nullable=True)  # MX records found at last scan
+    manual_expiry_date = Column(DateTime, nullable=True)  # used when WHOIS can't provide one
 
 
 class Host(Base):
@@ -213,6 +214,7 @@ async def init_db():
             "ALTER TABLE domains ADD COLUMN monitor_web BOOLEAN",
             "ALTER TABLE domains ADD COLUMN check_mail BOOLEAN DEFAULT TRUE",
             "ALTER TABLE domains ADD COLUMN has_mx BOOLEAN",
+            "ALTER TABLE domains ADD COLUMN manual_expiry_date DATETIME",
         ]:
             try:
                 await conn.execute(text(sql))

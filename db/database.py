@@ -30,6 +30,9 @@ class Domain(Base):
     wp_scan_at        = Column(DateTime, nullable=True)
     wp_scan_results   = Column(JSON, nullable=True)
     acked_checks      = Column(JSON, nullable=True)  # {check_id: {note, acked_at}}
+    monitor_web       = Column(Boolean, nullable=True)  # None = auto-detect on next scan
+    check_mail        = Column(Boolean, default=True)
+    has_mx            = Column(Boolean, nullable=True)  # MX records found at last scan
 
 
 class Host(Base):
@@ -207,6 +210,9 @@ async def init_db():
             "ALTER TABLE hosts ADD COLUMN gateway_ip TEXT",
             "ALTER TABLE hosts ADD COLUMN ping_ms REAL",
             "ALTER TABLE hosts ADD COLUMN notes TEXT",
+            "ALTER TABLE domains ADD COLUMN monitor_web BOOLEAN",
+            "ALTER TABLE domains ADD COLUMN check_mail BOOLEAN DEFAULT TRUE",
+            "ALTER TABLE domains ADD COLUMN has_mx BOOLEAN",
         ]:
             try:
                 await conn.execute(text(sql))

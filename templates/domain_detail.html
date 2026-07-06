@@ -13,7 +13,35 @@
     <span class="badge wp-badge" title="WordPress detected">WP</span>
     {% if domain.wp_version %}<span class="badge">v{{ domain.wp_version }}</span>{% endif %}
   {% endif %}
+  {% if domain.monitor_web is sameas false %}
+    <span class="badge" title="Website monitoring is off — uptime is checked via DNS resolution instead">mail/DNS only</span>
+  {% endif %}
 </div>
+
+{% if not readonly %}
+<section class="card">
+  <form hx-post="/domains/{{ domain.id }}/flags" hx-target="#flags-status" hx-swap="innerHTML"
+        style="display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap">
+    <span class="section-title" style="margin-bottom:0">Monitoring</span>
+    <label style="display:flex;align-items:center;gap:.4rem;font-size:13px;cursor:pointer">
+      <input type="checkbox" name="monitor_web" {% if domain.monitor_web is not sameas false %}checked{% endif %}>
+      Website (uptime, SSL, security headers)
+    </label>
+    <label style="display:flex;align-items:center;gap:.4rem;font-size:13px;cursor:pointer">
+      <input type="checkbox" name="check_mail" {% if domain.check_mail is not sameas false %}checked{% endif %}>
+      Mail security (SPF, DMARC, DKIM)
+      {% if domain.has_mx is sameas true %}<span class="badge pass" title="MX records found — this domain receives mail">MX ✓</span>
+      {% elif domain.has_mx is sameas false %}<span class="badge" title="No MX records — missing SPF/DMARC is treated as low-priority housekeeping">no MX</span>{% endif %}
+    </label>
+    <button type="submit" class="btn-sm">Save</button>
+    <span id="flags-status"></span>
+  </form>
+  <p class="muted-text" style="font-size:11px;margin-top:.5rem;margin-bottom:0">
+    Detected automatically when the domain was added — DNS and expiry checks always run.
+    With website off, uptime becomes a DNS-resolves check.
+  </p>
+</section>
+{% endif %}
 
 {% if not fails and not warns and not passes and not acked %}
   <div class="card"><p>Scan in progress — check back in a moment.</p></div>
@@ -68,6 +96,7 @@
 {% endif %}
 
 <!-- ── WordPress ─────────────────────────────────────────────────── -->
+{% if domain.monitor_web is not sameas false %}
 <section class="card" id="wp-section">
   <div class="card-header" style="margin-bottom:.75rem;display:flex;align-items:center;gap:.75rem">
     <h2 class="section-title" style="margin-bottom:0">WordPress</h2>
@@ -168,5 +197,6 @@
     <p class="empty-state">Click <strong>↺ Scan</strong> to check for WordPress on this domain.</p>
   {% endif %}
 </section>
+{% endif %}
 
 {% endblock %}

@@ -62,7 +62,7 @@ from discovery.port_info import enrich_ports
 from license import verify_license_key, LicenseInfo, LicenseStatus
 
 # ── Version ────────────────────────────────────────────────────────────────────
-APP_VERSION     = "0.2.10"
+APP_VERSION     = "0.2.11"
 _latest_version = ""
 _update_available = False
 
@@ -540,6 +540,26 @@ async def _icmp_check(host: str, timeout: int = 5) -> tuple[bool, int | None]:
         return False, None
 
 
+async def _dns_check(hostname: str) -> tuple[bool, int | None]:
+    """DNS resolution check for web-less domains; return (resolves, response_ms)."""
+    try:
+        t0 = datetime.now(timezone.utc)
+        await asyncio.get_running_loop().getaddrinfo(hostname, None)
+        ms = int((datetime.now(timezone.utc) - t0).total_seconds() * 1000)
+        return True, ms
+    except Exception:
+        return False, None
+
+
+async def _detect_monitor_web(hostname: str) -> bool:
+    """True if the domain answers on port 443 or 80 (has a web server)."""
+    for port in (443, 80):
+        is_up, _ = await _tcp_check(hostname, port, timeout=5)
+        if is_up:
+            return True
+    return False
+
+
 async def _tcp_check(host: str, port: int, timeout: int = 5) -> tuple[bool, int | None]:
     """TCP connect check, return (is_up, response_ms)."""
     import asyncio as _asyncio
@@ -567,13 +587,17 @@ async def _run_uptime_checks():
         now = datetime.now(timezone.utc)
         newly_down, newly_up = [], []
 
-        # ── Domain checks (HTTP/HTTPS) ──────────────────────────────────────
+        # ── Domain checks (HTTP/HTTPS, or DNS for web-less domains) ────────
         domains_result = await db.execute(select(Domain))
         for domain in domains_result.scalars().all():
-            reachable, status_code, response_ms = await _http_check(f"https://{domain.hostname}")
-            if not reachable:
-                reachable, status_code, response_ms = await _http_check(f"http://{domain.hostname}")
-            is_up = reachable and (status_code is not None) and status_code < 500
+            if domain.monitor_web is False:
+                is_up, response_ms = await _dns_check(domain.hostname)
+                status_code = None
+            else:
+                reachable, status_code, response_ms = await _http_check(f"https://{domain.hostname}")
+                if not reachable:
+                    reachable, status_code, response_ms = await _http_check(f"http://{domain.hostname}")
+                is_up = reachable and (status_code is not None) and status_code < 500
 
             db.add(UptimeCheck(domain_id=domain.id, checked_at=now,
                                is_up=is_up, response_ms=response_ms, status_code=status_code))
@@ -797,7 +821,14 @@ async def run_due_scans():
         for domain in domains:
             try:
                 print(f"Scanning {domain.hostname}…")
-                results = await scan_domain(domain.hostname)
+                if domain.monitor_web is None:
+                    domain.monitor_web = await _detect_monitor_web(domain.hostname)
+                results, has_mx = await scan_domain(
+                    domain.hostname,
+                    monitor_web=domain.monitor_web,
+                    check_mail=domain.check_mail is not False,
+                )
+                domain.has_mx = has_mx
                 await db.execute(
                     delete(ScanResult).where(
                         ScanResult.domain_id == domain.id,
@@ -1282,6 +1313,24 @@ async def add_domain(
         f'<div class="toast">Added {hostname} — scanning now...</div>',
         headers={"HX-Trigger": "domainAdded"},
     )
+
+
+@app.post("/domains/{domain_id}/flags", response_class=HTMLResponse)
+async def set_domain_flags(
+    domain_id: str,
+    monitor_web: str = Form(default=""),
+    check_mail: str = Form(default=""),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    db: AsyncSession = Depends(get_db),
+):
+    domain = await db.get(Domain, domain_id)
+    if not domain:
+        return HTMLResponse("Not found", status_code=404)
+    domain.monitor_web = monitor_web == "on"
+    domain.check_mail  = check_mail == "on"
+    await db.commit()
+    background_tasks.add_task(_scan_and_store, domain.hostname)
+    return HTMLResponse('<span class="muted" style="font-size:11px">Saved — rescanning ✓</span>')
 
 
 @app.delete("/domains/{domain_id}", response_class=HTMLResponse)
@@ -2370,7 +2419,14 @@ async def _scan_and_store(hostname: str):
         if not domain:
             return
         try:
-            results = await scan_domain(hostname)
+            if domain.monitor_web is None:
+                domain.monitor_web = await _detect_monitor_web(hostname)
+            results, has_mx = await scan_domain(
+                hostname,
+                monitor_web=domain.monitor_web,
+                check_mail=domain.check_mail is not False,
+            )
+            domain.has_mx = has_mx
             await db.execute(delete(ScanResult).where(
                 ScanResult.domain_id == domain.id,
                 ScanResult.check_id != "wordpress_vulns",
@@ -2649,14 +2705,19 @@ async def status_page(request: Request, db: AsyncSession = Depends(get_db)):
         latest = latest_result.scalars().first()
         current_up = latest.is_up if latest else None
 
-        status_hint = ""
-        if latest and latest.status_code:
-            status_hint = f" · HTTP {latest.status_code}"
-        elif latest and not latest.is_up:
-            status_hint = " · no response"
+        if domain.monitor_web is False:
+            status_hint = " · not resolving" if (latest and not latest.is_up) else ""
+            sublabel = f"DNS check{status_hint}"
+        else:
+            status_hint = ""
+            if latest and latest.status_code:
+                status_hint = f" · HTTP {latest.status_code}"
+            elif latest and not latest.is_up:
+                status_hint = " · no response"
+            sublabel = f"HTTPS/HTTP check{status_hint}"
         items.append({
             "label":      domain.hostname,
-            "sublabel":   f"HTTPS/HTTP check{status_hint}",
+            "sublabel":   sublabel,
             "domain":     domain,
             "grid":       grid,
             "uptime_pct": uptime_pct,

@@ -10,7 +10,41 @@ DKIM_SELECTORS = [
 ]
 
 
-async def check_spf(domain: str) -> CheckResult:
+async def check_mx(domain: str) -> bool:
+    """True if the domain has MX records (i.e. receives mail)."""
+    r = _res.get()
+    try:
+        answers = r.resolve(domain, "MX")
+        return len(answers) > 0
+    except Exception:
+        return False
+
+
+def _spf_missing_no_mx() -> CheckResult:
+    return CheckResult(
+        check_id="spf_missing",
+        status=Status.WARN,
+        title="No SPF Record (non-mail domain)",
+        detail="This domain has no MX records so it doesn't receive mail, but without SPF spammers can still spoof it in phishing emails.",
+        remediation='Publish a TXT DNS record: "v=spf1 -all" to declare this domain sends no mail.',
+        score_impact=3,
+        raw={},
+    )
+
+
+def _dmarc_missing_no_mx() -> CheckResult:
+    return CheckResult(
+        check_id="dmarc_missing",
+        status=Status.WARN,
+        title="No DMARC Record (non-mail domain)",
+        detail="This domain has no MX records so it doesn't receive mail, but DMARC still tells other mail servers to reject anything spoofing it.",
+        remediation='Add TXT record: _dmarc.yourdomain.com → "v=DMARC1; p=reject"',
+        score_impact=3,
+        raw={},
+    )
+
+
+async def check_spf(domain: str, has_mx: bool = True) -> CheckResult:
     r = _res.get()
     try:
         answers = r.resolve(domain, "TXT")
@@ -19,6 +53,8 @@ async def check_spf(domain: str) -> CheckResult:
             None
         )
         if not spf:
+            if not has_mx:
+                return _spf_missing_no_mx()
             return CheckResult(
                 check_id="spf_missing",
                 status=Status.FAIL,
@@ -44,6 +80,8 @@ async def check_spf(domain: str) -> CheckResult:
             remediation="", score_impact=0, raw={"record": spf},
         )
     except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.NoNameservers):
+        if not has_mx:
+            return _spf_missing_no_mx()
         return CheckResult(
             check_id="spf_missing", status=Status.FAIL,
             title="No SPF Record", detail="SPF record not found.",
@@ -52,7 +90,7 @@ async def check_spf(domain: str) -> CheckResult:
         )
 
 
-async def check_dmarc(domain: str) -> CheckResult:
+async def check_dmarc(domain: str, has_mx: bool = True) -> CheckResult:
     r = _res.get()
     try:
         answers = r.resolve(f"_dmarc.{domain}", "TXT")
@@ -61,6 +99,8 @@ async def check_dmarc(domain: str) -> CheckResult:
             None
         )
         if not dmarc:
+            if not has_mx:
+                return _dmarc_missing_no_mx()
             return CheckResult(
                 check_id="dmarc_missing", status=Status.FAIL,
                 title="No DMARC Record",
@@ -82,6 +122,8 @@ async def check_dmarc(domain: str) -> CheckResult:
             remediation="", score_impact=0, raw={"record": dmarc},
         )
     except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.NoNameservers):
+        if not has_mx:
+            return _dmarc_missing_no_mx()
         return CheckResult(
             check_id="dmarc_missing", status=Status.FAIL,
             title="No DMARC Record", detail="DMARC record not found.",

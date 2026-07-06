@@ -12,6 +12,9 @@
           <span class="badge wp-badge" title="WordPress detected{% if item.domain.wp_version %} (v{{ item.domain.wp_version }}){% endif %}">WP</span>
         {% endif %}
       {% endif %}
+      {% if item.domain.monitor_web is sameas false %}
+        <span class="badge" title="Website monitoring off — uptime checked via DNS resolution">mail/DNS</span>
+      {% endif %}
     </div>
     <span class="domain-meta">
       {% if scanning %}

@@ -272,7 +272,11 @@
 {% endif %}
 
 <!-- ── WordPress ─────────────────────────────────────────────────── -->
-{% if host.is_wordpress or (host.open_ports and (80 in host.open_ports|map(attribute='port')|list or 443 in host.open_ports|map(attribute='port')|list)) %}
+{% set wpns = namespace(has_web=false) %}
+{% for p in host.open_ports or [] %}
+  {% if p.port in (80, 443, 8080, 8443) or 'http' in (p.service or '') %}{% set wpns.has_web = true %}{% endif %}
+{% endfor %}
+{% if host.is_wordpress or wpns.has_web %}
 <section class="card" id="wp-section">
   <div class="card-header" style="margin-bottom:.75rem;display:flex;align-items:center;gap:.75rem">
     <h2 class="section-title" style="margin-bottom:0">WordPress</h2>

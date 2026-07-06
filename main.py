@@ -62,7 +62,7 @@ from discovery.port_info import enrich_ports
 from license import verify_license_key, LicenseInfo, LicenseStatus
 
 # ── Version ────────────────────────────────────────────────────────────────────
-APP_VERSION     = "0.2.13"
+APP_VERSION     = "0.2.14"
 _latest_version = ""
 _update_available = False
 
@@ -985,6 +985,48 @@ def _score_from_rows(rows) -> int | None:
         return None
     deducted = sum(r.score_impact for r in rows if r.status in ("fail", "warn"))
     return max(0, 60 - deducted)
+
+
+async def _get_upcoming_events(db: AsyncSession) -> list[dict]:
+    """Domain registration + SSL certificate expiries across every monitored
+    domain, soonest first. Shared by /events and the PDF report so the two
+    views can't quietly drift apart."""
+    domains = (await db.execute(select(Domain))).scalars().all()
+    events = []
+    for d in domains:
+        scan_rows = (await db.execute(
+            select(ScanResult).where(ScanResult.domain_id == d.id)
+        )).scalars().all()
+        by_id = {r.check_id: r for r in scan_rows}
+
+        for check_id in ("domain_expired", "domain_expiring_soon", "domain_renewal_due", "domain_expiry_ok"):
+            r = by_id.get(check_id)
+            if r and r.raw and "days_left" in r.raw:
+                events.append({
+                    "hostname":   d.hostname, "domain_id": d.id,
+                    "kind":       "Domain registration",
+                    "status":     r.status,
+                    "days_left":  r.raw["days_left"],
+                    "expiry":     r.raw.get("expiry"),
+                    "manual":     r.raw.get("source") == "manual",
+                })
+                break
+
+        for check_id in ("ssl_expired", "ssl_expiring_soon", "ssl_valid"):
+            r = by_id.get(check_id)
+            if r and r.raw and "days_left" in r.raw:
+                events.append({
+                    "hostname":   d.hostname, "domain_id": d.id,
+                    "kind":       "SSL certificate",
+                    "status":     r.status,
+                    "days_left":  r.raw["days_left"],
+                    "expiry":     r.raw.get("expiry"),
+                    "manual":     False,
+                })
+                break
+
+    events.sort(key=lambda e: e["days_left"])
+    return events
 
 
 def _detect_cidr() -> str:
@@ -2298,6 +2340,10 @@ async def download_pdf_report(request: Request, db: AsyncSession = Depends(get_d
                 "scan_results": h.wp_scan_results or {},
             })
 
+    # Upcoming events (domain + SSL expiry)
+    events = await _get_upcoming_events(db)
+    events_soon = sum(1 for e in events if e["days_left"] <= 30)
+
     # Topology data (reuse helpers already defined above)
     pdf_gateway_ip   = _detect_gateway()
     pdf_gateway_ips  = _detect_gateways()
@@ -2343,6 +2389,8 @@ async def download_pdf_report(request: Request, db: AsyncSession = Depends(get_d
         "gateway_ip":       pdf_gateway_ip,
         "infra_hosts":      pdf_infra_hosts,
         "groups_by24":      pdf_groups_by24,
+        "events":           events,
+        "events_soon":      events_soon,
     })
 
     loop = asyncio.get_event_loop()
@@ -2746,41 +2794,7 @@ async def toggle_public_status(domain_id: str, request: Request, db: AsyncSessio
 @app.get("/events", response_class=HTMLResponse)
 async def events_page(request: Request, db: AsyncSession = Depends(get_db)):
     """Upcoming domain-registration and SSL-certificate expiries, soonest first."""
-    domains = (await db.execute(select(Domain))).scalars().all()
-    events = []
-    for d in domains:
-        scan_rows = (await db.execute(
-            select(ScanResult).where(ScanResult.domain_id == d.id)
-        )).scalars().all()
-        by_id = {r.check_id: r for r in scan_rows}
-
-        for check_id in ("domain_expired", "domain_expiring_soon", "domain_renewal_due", "domain_expiry_ok"):
-            r = by_id.get(check_id)
-            if r and r.raw and "days_left" in r.raw:
-                events.append({
-                    "hostname":   d.hostname, "domain_id": d.id,
-                    "kind":       "Domain registration",
-                    "status":     r.status,
-                    "days_left":  r.raw["days_left"],
-                    "expiry":     r.raw.get("expiry"),
-                    "manual":     r.raw.get("source") == "manual",
-                })
-                break
-
-        for check_id in ("ssl_expired", "ssl_expiring_soon", "ssl_valid"):
-            r = by_id.get(check_id)
-            if r and r.raw and "days_left" in r.raw:
-                events.append({
-                    "hostname":   d.hostname, "domain_id": d.id,
-                    "kind":       "SSL certificate",
-                    "status":     r.status,
-                    "days_left":  r.raw["days_left"],
-                    "expiry":     r.raw.get("expiry"),
-                    "manual":     False,
-                })
-                break
-
-    events.sort(key=lambda e: e["days_left"])
+    events = await _get_upcoming_events(db)
     return _tpl("events.html", {"request": request, "events": events})
 
 

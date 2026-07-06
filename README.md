@@ -4,7 +4,7 @@
 
 TipOff runs as a Docker container on your network and continuously monitors your:
 
-- **External domains** — SSL certificates, SPF, DMARC, DKIM, security headers, HTTPS redirect, domain expiry. Auto-detects whether a domain runs a website and/or handles mail, so a mail-only or subdomain entry doesn't get checks that don't apply to it. Score each domain 0–60 and acknowledge known issues with notes.
+- **External domains** — SSL certificates, SPF, DMARC, DKIM, security headers, HTTPS redirect, domain expiry. Auto-detects whether a domain runs a website, so a mail-only or admin-only domain doesn't get checked for one it doesn't have; subdomains skip the registrar-expiry check that only applies to the registrable domain. Score each domain 0–60 and acknowledge known issues with notes.
 - **LAN hosts** — auto-discovery via nmap/ARP, open port risk analysis, vendor/OS detection, automatic VM detection, IPv6 neighbour discovery, host tagging, near-realtime connectivity checks (TCP every 5 minutes), Wake-on-LAN, freeform notes, acknowledge/mitigate workflow
 - **Network map** — interactive topology view of your whole network: gateway, infrastructure tier, and local devices grouped by subnet, plus automatic detection of routed/VPN-connected remote subnets (with peer inference and a "likely VPN/WAN" latency hint) and IPv6 segments
 - **Upcoming events** — a single view of every domain's registration and SSL certificate expiry, soonest first, so renewals get handled before they turn into a critical alert
@@ -117,7 +117,7 @@ TipOff auto-detects what a domain actually needs checking for, rather than assum
 
 - **Website capability** is detected by probing ports 443/80 when the domain is added. If it's off, uptime becomes a DNS-resolves check instead of a false "down" for a mail-only or admin-only domain, and SSL/security-header checks are skipped.
 - **Mail security** (SPF/DMARC/DKIM) checks for MX records first. A domain with no MX gets a low-priority housekeeping note instead of a critical alert — the fix is still to publish a null SPF/DMARC record so spammers can't spoof it, just not urgent.
-- **Subdomains** are detected automatically when you're also monitoring their parent domain. A subdomain skips WHOIS expiry entirely (only the registrable domain has one) and skips mail-security checks if it has no MX of its own — that's the apex domain's responsibility, not a false alarm on the subdomain.
+- **Subdomains** are detected automatically when you're also monitoring their parent domain, and skip WHOIS expiry entirely — only the registrable domain has a real registration date. Mail-security checks still run on subdomains, though: a name having no MX record only means it doesn't *receive* mail here, not that it can't *send* mail (a send-only transactional subdomain is a common setup with SPF but no MX), so SPF/DMARC stay checked either way rather than risk a false sense of coverage.
 - Both capability flags can be overridden per domain if auto-detection gets it wrong.
 
 **Manual expiry override:** some registries (Australian `.au` domains, for one) don't publish an expiry date via WHOIS at all. When that happens, the domain page lets you enter the date yourself — the same day-count warnings apply afterwards, clearly labelled as manually entered.

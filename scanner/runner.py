@@ -17,27 +17,32 @@ async def scan_domain(
     """Run checks for a domain. Returns (results, has_mx).
 
     monitor_web=False skips SSL + HTTP header checks (no web server here).
-    check_mail=False skips SPF/DMARC/DKIM entirely. When mail checks run,
-    missing SPF/DMARC on a domain without MX records is softened to a
-    low-impact warning, and DKIM (meaningless without mail) is skipped.
+    check_mail=False skips SPF/DMARC/DKIM entirely — this is the one true
+    "I know this doesn't send mail" override. Otherwise SPF/DMARC always
+    run: a missing record on a domain without MX records is softened to
+    a low-impact warning rather than a critical, but still checked, since
+    MX only proves whether a name *receives* mail here — it says nothing
+    about whether it's used to *send* mail (e.g. a send-only transactional
+    subdomain with SPF but deliberately no MX). Skipping the check outright
+    on "no MX" would be a false sense of coverage, not just noise reduction.
+    DKIM stays gated on has_mx, since (unlike SPF/DMARC) there's no sound
+    "publish this defensively anyway" advice for a domain that isn't
+    already receiving mail — checking it broadly would just be noise.
 
-    is_subdomain=True skips WHOIS expiry entirely (only the registrable
-    domain has one) and, if this subdomain has no MX of its own, skips
-    mail checks too — spoofing protection for a name that never sends
-    mail is the apex domain's job, not a false alarm here.
+    is_subdomain=True skips WHOIS expiry entirely — only the registrable
+    domain has one.
 
     manual_expiry substitutes for WHOIS when it can't return a date
     (registrar privacy, or a TLD like .au that doesn't publish one).
     """
     has_mx = await check_mx(domain) if check_mail else None
-    run_mail = check_mail and not (is_subdomain and not has_mx)
 
     tasks = []
     if not is_subdomain:
         tasks.append(check_domain_expiry(domain))
     if monitor_web:
         tasks += [check_ssl(domain), check_headers(domain)]
-    if run_mail:
+    if check_mail:
         tasks += [check_spf(domain, has_mx), check_dmarc(domain, has_mx)]
         if has_mx:
             tasks.append(check_dkim(domain))

@@ -34,8 +34,7 @@
       <input type="checkbox" name="check_mail" {% if domain.check_mail is not sameas false %}checked{% endif %}>
       Mail security (SPF, DMARC, DKIM)
       {% if domain.has_mx is sameas true %}<span class="badge pass" title="MX records found — this domain receives mail">MX ✓</span>
-      {% elif domain.has_mx is sameas false and parent_domain %}<span class="badge" title="No mail server at this subdomain — spoofing protection is the parent domain's job, so this check is skipped">not required (subdomain)</span>
-      {% elif domain.has_mx is sameas false %}<span class="badge" title="No MX records — missing SPF/DMARC is treated as low-priority housekeeping">no MX</span>{% endif %}
+      {% elif domain.has_mx is sameas false %}<span class="badge" title="No MX records found — this only tells us the name doesn't receive mail here, not that it can't send. Missing SPF/DMARC is still checked, just treated as low-priority housekeeping rather than critical.">no MX</span>{% endif %}
     </label>
     <button type="submit" class="btn-sm">Save</button>
     <span id="flags-status"></span>

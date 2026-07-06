@@ -4,10 +4,11 @@
 
 TipOff runs as a Docker container on your network and continuously monitors your:
 
-- **External domains** — SSL certificates, SPF, DMARC, DKIM, security headers, HTTPS redirect, domain expiry. Score each domain 0–60 and acknowledge known issues with notes.
-- **LAN hosts** — auto-discovery via nmap/ARP, open port risk analysis, vendor/OS detection, automatic VM detection, IPv6 neighbour discovery, host tagging, near-realtime connectivity checks (TCP every 5 minutes), acknowledge/mitigate workflow
-- **Network map** — interactive topology view of your network: gateway, infrastructure tier, and devices grouped by /24 subnet or discovery CIDR — three toggleable modes
-- **Uptime monitors** — TCP and HTTP/HTTPS service monitors with response time history and up/down tracking
+- **External domains** — SSL certificates, SPF, DMARC, DKIM, security headers, HTTPS redirect, domain expiry. Auto-detects whether a domain runs a website and/or handles mail, so a mail-only or subdomain entry doesn't get checks that don't apply to it. Score each domain 0–60 and acknowledge known issues with notes.
+- **LAN hosts** — auto-discovery via nmap/ARP, open port risk analysis, vendor/OS detection, automatic VM detection, IPv6 neighbour discovery, host tagging, near-realtime connectivity checks (TCP every 5 minutes), Wake-on-LAN, freeform notes, acknowledge/mitigate workflow
+- **Network map** — interactive topology view of your whole network: gateway, infrastructure tier, and local devices grouped by subnet, plus automatic detection of routed/VPN-connected remote subnets (with peer inference and a "likely VPN/WAN" latency hint) and IPv6 segments
+- **Upcoming events** — a single view of every domain's registration and SSL certificate expiry, soonest first, so renewals get handled before they turn into a critical alert
+- **Uptime monitors** — TCP, HTTP/HTTPS, and ICMP ping service monitors with response time history and up/down tracking
 - **WordPress scanning** — detect WordPress installations on domains and LAN hosts, check plugins and themes against the WPScan vulnerability database (API key required)
 - **Email breaches** — staff email addresses checked against Have I Been Pwned, password breach checker included
 - **Cyber Essentials readiness** — guided questionnaire across all 5 CE control areas, auto-populated from scan evidence
@@ -110,13 +111,28 @@ You can customise the DNS servers used under **Settings → DNS Servers**.
 
 ---
 
+## Domain Monitoring
+
+TipOff auto-detects what a domain actually needs checking for, rather than assuming every domain runs a website and sends mail:
+
+- **Website capability** is detected by probing ports 443/80 when the domain is added. If it's off, uptime becomes a DNS-resolves check instead of a false "down" for a mail-only or admin-only domain, and SSL/security-header checks are skipped.
+- **Mail security** (SPF/DMARC/DKIM) checks for MX records first. A domain with no MX gets a low-priority housekeeping note instead of a critical alert — the fix is still to publish a null SPF/DMARC record so spammers can't spoof it, just not urgent.
+- **Subdomains** are detected automatically when you're also monitoring their parent domain. A subdomain skips WHOIS expiry entirely (only the registrable domain has one) and skips mail-security checks if it has no MX of its own — that's the apex domain's responsibility, not a false alarm on the subdomain.
+- Both capability flags can be overridden per domain if auto-detection gets it wrong.
+
+**Manual expiry override:** some registries (Australian `.au` domains, for one) don't publish an expiry date via WHOIS at all. When that happens, the domain page lets you enter the date yourself — the same day-count warnings apply afterwards, clearly labelled as manually entered.
+
+---
+
 ## LAN Discovery & Host Monitoring
 
 TipOff uses `nmap` + ARP to discover hosts on your network.
 
-Enter one or more CIDR ranges (comma-separated) in the dashboard, e.g. `192.168.1.0/24, 10.0.0.0/24`. Scheduled auto-scans can be configured under **Settings → LAN Scan Schedule**.
+Enter one or more CIDR ranges (comma-separated) in the dashboard, e.g. `192.168.1.0/24, 10.0.0.0/24`. Scheduled auto-scans can be configured under **Settings → LAN Scan Schedule**. Ranges are validated before scanning — IPv4 only, capped at `/16` — so a mistyped range fails fast with a clear message instead of exhausting memory on a sweep that was never going to finish.
 
 Once hosts are discovered, TipOff TCP-checks every open port every 5 minutes, giving you a near-realtime view of which hosts and ports are online. If a host or port goes unreachable, you can receive an instant webhook alert (see below).
+
+**Host detail page:** every discovered host has its own page with open ports (clickable if a web service is detected), a network-distance readout (hop count and TTL, so you can tell a local device from one reached over a VPN or router hop), a **Wake-on-LAN** button for hosts with a MAC address on your local segment, quick "add monitor" shortcuts pre-filled from the host's IP and open ports, and a freeform notes field.
 
 Hosts with risky open ports (Telnet, SMB, RDP etc.) are flagged with a risk level and remediation advice. You can acknowledge flagged hosts with a note to remove them from the active alert count.
 
@@ -132,24 +148,36 @@ Hosts with risky open ports (Telnet, SMB, RDP etc.) are flagged with a risk leve
 
 ## Network Map
 
-The **Network Map** (`/topology`) gives you an at-a-glance visual of your network topology:
+The **Network Map** (`/topology`) gives you an at-a-glance visual of your network topology, drawn as a family tree with your gateway at the head:
 
-- **Default gateway** highlighted at the top
+- **Default gateway** at the top, with your **local network** dropping straight down from it
 - **Infrastructure tier** — routers, switches, APs and similar devices auto-classified by vendor and hostname
 - **Devices** — everything else, with VM, v6, and user tags shown inline
 
-Three toggle modes:
+Three toggle modes for the local devices tier, remembered in your browser:
 - **By /24** — devices split into columns by /24 subnet (useful for seeing your `.0.x`, `.1.x`, `.10.x` ranges at a glance)
-- **By network** — devices grouped by the CIDR block you entered in discovery settings
+- **By network** — devices grouped by the CIDR block you entered in discovery settings. If a host falls outside every configured range but shares a /24 with one, TipOff works out the actual complementary block (e.g. a configured `10.1.3.0/25` puts uncovered addresses under `10.1.3.128/25`, not a misleading full `/24`)
 - **Flat** — all devices in one pool
 
-The selected mode is remembered in your browser. The network map is also included in PDF reports (Pro).
+**Routed and VPN-connected subnets** hang off the gateway's side as a dashed branch, separate from the local tree. TipOff infers this from traceroute hop counts and TTL — a host reached through your gateway with more hops than your local devices is a routed subnet, not a local one. Where one host in that subnet sits exactly one hop closer than the rest, it's promoted as the subnet's gateway/peer with the others shown underneath. A **"likely VPN/WAN"** chip appears when that subnet answers noticeably slower than your local LAN (a tunnel or WAN link, rather than a second local segment or VLAN).
+
+**Dual-reachable flag:** if the same subnet shows up both as directly-attached local devices *and* as a routed subnet, the map flags it — that usually means a host is bridging two segments (a second NIC, or acting as a router). Harmless on a homelab, worth a look on a network that expects proper segmentation.
+
+**IPv6 segments** discovered via NDP are drawn as their own section, grouped by /64 prefix (link-local addresses excluded, since every host has one and it isn't a real segment).
+
+The network map is also included in PDF reports (Pro).
+
+---
+
+## Upcoming Events
+
+The **Events** page (`/events`) lists every domain's registration and SSL certificate expiry across your whole install, soonest first — including any manually entered expiry dates. It's the answer to "I found out my domain expired when a customer emailed me": renewals show up here weeks in advance instead of as a surprise critical alert.
 
 ---
 
 ## Uptime Monitors
 
-Add TCP or HTTP/HTTPS monitors under the **Monitors** page. TipOff checks them every 5 minutes, records response times, and tracks up/down history. Webhook alerts fire when a monitor transitions from up to down or back.
+Add TCP, HTTP/HTTPS, or ICMP ping monitors under the **Monitors** page — ICMP is useful for portless devices like switches or printers that don't run any TCP service to check. TipOff checks them every 5 minutes, records response times, and tracks up/down history. Webhook alerts fire when a monitor transitions from up to down or back.
 
 ---
 

@@ -1458,12 +1458,38 @@ input[type=number] { -moz-appearance: textfield; }
 .topo-remote  { border-color: rgba(99,102,241,.3); border-style: dashed; }
 
 /* Node text */
-.topo-node-label  { font-size: 9px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.topo-node-label  { font-size: 9px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); order: 0; }
 .topo-node-ip     { font-family: monospace; font-size: 12px; font-weight: 600; }
-.topo-node-name   { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.topo-node-vendor { font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.topo-node-tags   { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 1px; }
-.topo-node-status { margin-top: 0.2rem; display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }
+.topo-node-name   { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; order: 3; }
+.topo-node-vendor { font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; order: 4; }
+.topo-node-tags   { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 1px; order: 5; }
+.topo-node-status { margin-top: 0.2rem; display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; order: 6; }
+
+/* IPv4/IPv6 primary-line swap — "Show IPv6 first" toggle on the Network Map.
+   Everything else above keeps an explicit order so these two can trade
+   places without disturbing the rest of the card's layout. */
+.topo-node-ip-v4 { order: 1; }
+.topo-node-ip-v6 {
+  order: 2;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#topo-tree.v6-primary .topo-node-ip-v4 {
+  order: 2;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--muted);
+}
+#topo-tree.v6-primary .topo-node-ip-v6 {
+  order: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
 
 /* Full-width topology page */
 main:has(.topo-tree) { max-width: none; }

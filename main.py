@@ -62,7 +62,7 @@ from discovery.port_info import enrich_ports
 from license import verify_license_key, LicenseInfo, LicenseStatus
 
 # ── Version ────────────────────────────────────────────────────────────────────
-APP_VERSION     = "0.2.14"
+APP_VERSION     = "0.2.15"
 _latest_version = ""
 _update_available = False
 
@@ -1104,6 +1104,27 @@ def _detect_gateways() -> set[str]:
     return gateways
 
 
+def _detect_ipv6_gateways() -> set[str]:
+    """Read the IPv6 default router address(es) the kernel learned from
+    Router Advertisements. Nearly always the same physical device as the
+    IPv4 gateway, so we don't need MAC-matching to know which host this
+    is — it just gets attached directly to the already-identified gateway."""
+    import subprocess
+    gateways: set[str] = set()
+    try:
+        out = subprocess.run(
+            ["ip", "-6", "route", "show", "default"],
+            capture_output=True, text=True, timeout=5,
+        ).stdout
+        for line in out.splitlines():
+            parts = line.split()
+            if "via" in parts:
+                gateways.add(parts[parts.index("via") + 1].split("%")[0])
+    except Exception:
+        pass
+    return gateways
+
+
 def _classify_host(host, gateway_ips: set[str]) -> str:
     if host.ip in gateway_ips:
         return "gateway"
@@ -1144,6 +1165,61 @@ def _containing_cidr(ip: str, cidrs: list[str]) -> str:
     except Exception:
         pass
     return _slash24(ip)
+
+
+def _v6_host_part(addr: str, prefix_len: int = 64) -> str:
+    """Compress an IPv6 address down to just the host portion, given a known
+    prefix length — e.g. fd00:368:0:fe0a::be24:11ff:fec8:9457 at /64 becomes
+    ::be24:11ff:fec8:9457. The known prefix is shown once already (the /64
+    segment header on the topology map), so re-printing it on every host card
+    just eats space without adding information."""
+    try:
+        ip6 = ipaddress.IPv6Address(addr)
+        host_bits = int(ip6) & ((1 << (128 - prefix_len)) - 1)
+        return str(ipaddress.IPv6Address(host_bits))
+    except Exception:
+        return addr
+
+
+def _is_eui64(addr: str, mac: str) -> bool:
+    """True if addr's interface identifier is the classic modified-EUI-64
+    derived from mac — the stable form nearly every stack still uses for its
+    link-local address, and many use for global addresses too (unless the
+    device has IPv6 privacy/temporary addressing turned on, which uses a
+    random interface ID instead — so "not EUI-64" does NOT necessarily mean
+    "manually assigned", just "not derived from this MAC")."""
+    try:
+        ip6 = ipaddress.IPv6Address(addr)
+        b = [int(x, 16) for x in mac.lower().split(":")]
+        if len(b) != 6:
+            return False
+        eui = b[:3] + [0xff, 0xfe] + b[3:]
+        eui[0] ^= 0x02  # flip the universal/local bit
+        expected = 0
+        for byte in eui:
+            expected = (expected << 8) | byte
+        actual = int(ip6) & ((1 << 64) - 1)
+        return actual == expected
+    except Exception:
+        return False
+
+
+def _enrich_ipv6_display(host) -> None:
+    """Attach display-only ipv6 fields to a host for the topology map:
+    v6_primary (compressed, preferring a non-EUI-64 address since that's
+    usually the more memorable/intentional one when there's a choice),
+    v6_primary_is_eui64, and v6_others (compressed, for the tooltip)."""
+    host.v6_primary = None
+    host.v6_primary_is_eui64 = False
+    host.v6_others = []
+    addrs = [a for a in (host.ipv6_addresses or []) if not a.startswith("fe80")]
+    if not addrs:
+        return
+    non_eui64 = [a for a in addrs if not (host.mac and _is_eui64(a, host.mac))]
+    primary = non_eui64[0] if non_eui64 else addrs[0]
+    host.v6_primary = _v6_host_part(primary)
+    host.v6_primary_is_eui64 = bool(host.mac and _is_eui64(primary, host.mac))
+    host.v6_others = [_v6_host_part(a) for a in addrs if a != primary]
 
 
 # ── Pages ──────────────────────────────────────────────────────────────────────
@@ -2491,7 +2567,8 @@ async def _run_discovery_job(job_id: str, cidr: str):
         job["stage"] = "Discovering IPv6 neighbors…"
         try:
             ipv6_neighbors = await discover_ipv6_neighbors()
-            if ipv6_neighbors:
+            ipv6_gateways  = _detect_ipv6_gateways()
+            if ipv6_neighbors or ipv6_gateways:
                 async with SessionLocal() as db:
                     all_hosts = (await db.execute(select(Host))).scalars().all()
                     mac_to_host = {h.mac.lower(): h for h in all_hosts if h.mac}
@@ -2502,6 +2579,19 @@ async def _run_discovery_job(job_id: str, cidr: str):
                             if neighbor["ipv6"] not in addrs:
                                 addrs.append(neighbor["ipv6"])
                                 host_row.ipv6_addresses = addrs
+
+                    # The IPv6 default router is almost always the same
+                    # physical device as the IPv4 gateway — no MAC-matching
+                    # needed, we know exactly which host this is.
+                    if ipv6_gateways:
+                        ipv4_gateway_ips = _detect_gateways()
+                        for gw_host in all_hosts:
+                            if gw_host.ip in ipv4_gateway_ips:
+                                addrs = list(gw_host.ipv6_addresses or [])
+                                for gw6 in ipv6_gateways:
+                                    if gw6 not in addrs:
+                                        addrs.append(gw6)
+                                gw_host.ipv6_addresses = addrs
                     await db.commit()
         except Exception as e:
             print(f"IPv6 discovery warning: {e}")
@@ -2608,6 +2698,9 @@ async def topology_page(request: Request, db: AsyncSession = Depends(get_db)):
     hosts       = (await db.execute(select(Host))).scalars().all()
     gateway_ips = _detect_gateways()
     cidrs       = [c.strip() for c in _discovery_cidr.split(",") if c.strip()]
+
+    for host in hosts:
+        _enrich_ipv6_display(host)
 
     gateway_hosts = []
     infra_hosts   = []
@@ -2796,6 +2889,11 @@ async def events_page(request: Request, db: AsyncSession = Depends(get_db)):
     """Upcoming domain-registration and SSL-certificate expiries, soonest first."""
     events = await _get_upcoming_events(db)
     return _tpl("events.html", {"request": request, "events": events})
+
+
+@app.get("/tools/subnet-calculator", response_class=HTMLResponse)
+async def subnet_calc_page(request: Request):
+    return _tpl("subnet_calc.html", {"request": request})
 
 
 @app.get("/status", response_class=HTMLResponse)

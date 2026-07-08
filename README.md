@@ -138,7 +138,7 @@ Hosts with risky open ports (Telnet, SMB, RDP etc.) are flagged with a risk leve
 
 **VM detection:** TipOff automatically identifies virtual machines using MAC address analysis — both known hypervisor OUI prefixes (VMware, VirtualBox, Hyper-V, Parallels, QEMU, Xen) and the locally-administered address (LAA) bit, which covers Proxmox and other hypervisors that assign random MACs. Detected VMs are tagged with a `VM` badge.
 
-**IPv6 discovery:** After each LAN scan, TipOff sends an ICMPv6 multicast ping to discover IPv6-capable neighbours and records their addresses. Hosts with IPv6 are tagged with a `v6` badge; full address details (global and link-local) are shown in the host detail view.
+**IPv6 discovery:** After each LAN scan, TipOff probes each interface's IPv6 all-nodes multicast address across several rounds a few seconds apart (a single probe misses anything that doesn't answer instantly) and records what responds. The IPv6 default router is also picked up directly from the kernel's Router Advertisement–learned route, no separate probing needed since it's almost always the same device as the IPv4 gateway. Hosts with IPv6 show their address directly on the Network Map — compressed to just the host portion once the /64 prefix is already shown by the segment header — and, when a host has more than one address, the classic MAC-derived EUI-64/SLAAC form is tagged as such and shown as secondary, since it's usually the address a human didn't choose. A "Show IPv6 first" toggle on the map flips which family is the bold primary line, for anyone going IPv6-first.
 
 **Host tagging:** Add your own freeform tags to any host — `production`, `dmz`, `printer`, whatever makes sense for your network. The dashboard includes a tag filter bar so you can quickly isolate a group of hosts.
 
@@ -172,6 +172,12 @@ The network map is also included in PDF reports (Pro).
 ## Upcoming Events
 
 The **Events** page (`/events`) lists every domain's registration and SSL certificate expiry across your whole install, soonest first — including any manually entered expiry dates. It's the answer to "I found out my domain expired when a customer emailed me": renewals show up here weeks in advance instead of as a surprise critical alert.
+
+---
+
+## Subnet Calculator
+
+The **Subnet Calculator** (`/tools/subnet-calculator`) is a standalone IPv4/IPv6 calculator — paste in a CIDR (or just an address, defaulting to /24 or /64) and get the network address, host range, address count, and for IPv6, how many /64 subnets a larger block breaks down into. Runs entirely client-side, no scan data involved.
 
 ---
 

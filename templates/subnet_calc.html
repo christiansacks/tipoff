@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header">
+  <h1>Subnet Calculator</h1>
+</div>
+
+<section class="card">
+  <div class="field">
+    <label for="cidr-input">CIDR or address</label>
+    <input type="text" id="cidr-input" placeholder="e.g. 192.168.1.0/24 or fd00:1234::/64"
+           oninput="calcSubnet()" autocomplete="off" spellcheck="false">
+    <span class="field-hint" id="cidr-hint">
+      IPv4 or IPv6, auto-detected. If you leave off the /prefix, it defaults to /24 (IPv4) or /64 (IPv6).
+    </span>
+  </div>
+  <div id="cidr-error" style="color:var(--fail);font-size:12px;margin-top:.5rem;display:none"></div>
+</section>
+
+<section class="card" id="results-card" style="display:none">
+  <h2 class="section-title" id="results-title">Result</h2>
+  <div id="results-body"></div>
+</section>
+
+<script>
+function row(label, value, mono) {
+  return '<div class="info-row"><span class="info-label">' + label + '</span>' +
+         '<span class="info-value' + (mono ? ' mono' : '') + '">' + value + '</span></div>';
+}
+
+function fmtInt(n) {
+  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+function fmtBig(n) {
+  const s = n.toString();
+  return s.length > 15 ? fmtInt(n) : fmtInt(Number(n));
+}
+
+// ── IPv4 ──────────────────────────────────────────────────────────────────
+function calcIPv4(ip, prefix) {
+  const parts = ip.split('.').map(Number);
+  if (parts.length !== 4 || parts.some(p => isNaN(p) || p < 0 || p > 255)) return null;
+  if (prefix < 0 || prefix > 32) return null;
+  const ipInt   = ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
+  const maskInt = prefix === 0 ? 0 : (0xFFFFFFFF << (32 - prefix)) >>> 0;
+  const network = (ipInt & maskInt) >>> 0;
+  const broadcast = (network | (~maskInt >>> 0)) >>> 0;
+  const total = Math.pow(2, 32 - prefix);
+  const toIp = n => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.');
+
+  let usable, first, last;
+  if (prefix >= 31) {
+    usable = prefix === 32 ? 1 : 2;
+    first = toIp(network);
+    last = toIp(broadcast);
+  } else {
+    usable = total - 2;
+    first = toIp(network + 1);
+    last = toIp(broadcast - 1);
+  }
+
+  return {
+    family: 'IPv4',
+    network: toIp(network) + '/' + prefix,
+    mask: toIp(maskInt),
+    wildcard: toIp((~maskInt) >>> 0),
+    broadcast: toIp(broadcast),
+    total: fmtInt(total),
+    usable: fmtInt(usable),
+    first, last,
+  };
+}
+
+// ── IPv6 (BigInt — 128-bit math doesn't fit in a JS Number) ────────────────
+function parseIPv6(addr) {
+  let parts;
+  if (addr.includes('::')) {
+    const halves = addr.split('::');
+    if (halves.length > 2) return null;
+    const left  = halves[0] ? halves[0].split(':') : [];
+    const right = halves[1] ? halves[1].split(':') : [];
+    const missing = 8 - left.length - right.length;
+    if (missing < 0) return null;
+    parts = left.concat(Array(missing).fill('0'), right);
+  } else {
+    parts = addr.split(':');
+  }
+  if (parts.length !== 8 || parts.some(p => p !== '' && !/^[0-9a-fA-F]{1,4}$/.test(p))) return null;
+  let big = 0n;
+  for (const p of parts) big = (big << 16n) | BigInt(parseInt(p || '0', 16));
+  return big;
+}
+
+function formatIPv6(big) {
+  const groups = [];
+  for (let i = 7; i >= 0; i--) groups.push(((big >> BigInt(i * 16)) & 0xFFFFn).toString(16));
+
+  let bestStart = -1, bestLen = 0, curStart = -1, curLen = 0;
+  for (let i = 0; i < 8; i++) {
+    if (groups[i] === '0') {
+      if (curStart === -1) curStart = i;
+      curLen++;
+      if (curLen > bestLen) { bestLen = curLen; bestStart = curStart; }
+    } else { curStart = -1; curLen = 0; }
+  }
+  if (bestLen > 1) {
+    const before = groups.slice(0, bestStart);
+    const after  = groups.slice(bestStart + bestLen);
+    return before.join(':') + '::' + after.join(':');
+  }
+  return groups.join(':');
+}
+
+function calcIPv6(addr, prefix) {
+  const ipBig = parseIPv6(addr);
+  if (ipBig === null || prefix < 0 || prefix > 128) return null;
+  const hostBits = 128n - BigInt(prefix);
+  const mask = hostBits === 0n ? (2n ** 128n - 1n) : (((2n ** 128n - 1n) >> hostBits) << hostBits);
+  const network = ipBig & mask;
+  const total = 2n ** hostBits;
+  const last  = network | ((2n ** hostBits) - 1n);
+
+  let subnetInfo = null;
+  if (prefix < 64) {
+    subnetInfo = fmtBig(2n ** (64n - BigInt(prefix))) + ' /64 subnets';
+  } else if (prefix > 64) {
+    subnetInfo = '1/' + fmtBig(2n ** (BigInt(prefix) - 64n)) + ' of a /64';
+  } else {
+    subnetInfo = 'exactly 1 /64';
+  }
+
+  return {
+    family: 'IPv6',
+    network: formatIPv6(network) + '/' + prefix,
+    total: '2^' + (128 - prefix) + ' = ' + fmtBig(total),
+    first: formatIPv6(network),
+    last: formatIPv6(last),
+    subnetInfo,
+  };
+}
+
+function calcSubnet() {
+  const raw = document.getElementById('cidr-input').value.trim();
+  const errorEl = document.getElementById('cidr-error');
+  const cardEl  = document.getElementById('results-card');
+  errorEl.style.display = 'none';
+  cardEl.style.display = 'none';
+  if (!raw) return;
+
+  const isV6 = raw.includes(':');
+  let [addr, prefixStr] = raw.split('/');
+  addr = addr.trim();
+  const prefix = prefixStr !== undefined ? parseInt(prefixStr, 10) : (isV6 ? 64 : 24);
+
+  const result = isV6 ? calcIPv6(addr, prefix) : calcIPv4(addr, prefix);
+  if (!result) {
+    errorEl.textContent = 'Could not parse that as a valid ' + (isV6 ? 'IPv6' : 'IPv4') + ' address/prefix.';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  document.getElementById('results-title').textContent = result.family + ' — ' + result.network;
+  let html = '';
+  html += row('Network', result.network, true);
+  if (result.family === 'IPv4') {
+    html += row('Subnet mask', result.mask, true);
+    html += row('Wildcard mask', result.wildcard, true);
+    html += row('Broadcast', result.broadcast, true);
+    html += row('Total addresses', result.total);
+    html += row('Usable hosts', result.usable);
+    html += row('First usable', result.first, true);
+    html += row('Last usable', result.last, true);
+  } else {
+    html += row('Total addresses', result.total);
+    html += row('First address', result.first, true);
+    html += row('Last address', result.last, true);
+    html += row('/64 subnets', result.subnetInfo);
+  }
+  document.getElementById('results-body').innerHTML = html;
+  cardEl.style.display = '';
+}
+</script>
+
+{% endblock %}

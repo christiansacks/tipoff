@@ -8,6 +8,9 @@
     <button class="topo-mode-btn" data-mode="2" onclick="setTopoMode(2)" title="Group by discovery network block">By network</button>
     <button class="topo-mode-btn" data-mode="3" onclick="setTopoMode(3)" title="All hosts in one pool">Flat</button>
   </div>
+  <div class="topo-mode-toggle">
+    <button class="topo-mode-btn" id="v6-toggle-btn" onclick="toggleV6Primary()" title="Show each host's IPv6 address as the bold primary line instead of IPv4">Show IPv6 first</button>
+  </div>
 </div>
 
 <div class="topo-tree" id="topo-tree">
@@ -26,7 +29,12 @@
         {% for gw in gateway_hosts %}
         <a href="/host/{{ gw.id }}" class="topo-node topo-gateway" data-ip="{{ gw.ip }}">
           <div class="topo-node-label">Gateway</div>
-          <div class="topo-node-ip">{{ gw.ip }}</div>
+          <div class="topo-node-ip topo-node-ip-v4">{{ gw.ip }}</div>
+          {% if gw.v6_primary %}
+          <div class="topo-node-ip topo-node-ip-v6" {% if gw.v6_others %}title="Also: {{ gw.v6_others|join(', ') }}"{% endif %}>
+            {{ gw.v6_primary }}{% if gw.v6_primary_is_eui64 %}<span class="host-tag-chip" style="font-size:8px;padding:0 3px;margin-left:3px">EUI-64</span>{% endif %}
+          </div>
+          {% endif %}
           {% if gw.hostname %}<div class="topo-node-name">{{ gw.hostname }}</div>{% endif %}
           {% if gw.vendor and gw.vendor != 'Unknown' %}<div class="topo-node-vendor">{{ gw.vendor }}</div>{% endif %}
           <div class="topo-node-status">
@@ -60,7 +68,12 @@
       <div class="topo-tier topo-tier-multi">
         {% for host in infra_hosts %}
         <a href="/host/{{ host.id }}" class="topo-node topo-infra {{ 'topo-flagged' if host.flagged and not host.acknowledged else 'topo-acked' if host.flagged and host.acknowledged else '' }}">
-          <div class="topo-node-ip">{{ host.ip }}</div>
+          <div class="topo-node-ip topo-node-ip-v4">{{ host.ip }}</div>
+          {% if host.v6_primary %}
+          <div class="topo-node-ip topo-node-ip-v6" {% if host.v6_others %}title="Also: {{ host.v6_others|join(', ') }}"{% endif %}>
+            {{ host.v6_primary }}{% if host.v6_primary_is_eui64 %}<span class="host-tag-chip" style="font-size:8px;padding:0 3px;margin-left:3px">EUI-64</span>{% endif %}
+          </div>
+          {% endif %}
           {% if host.hostname %}<div class="topo-node-name">{{ host.hostname }}</div>{% endif %}
           {% if host.vendor and host.vendor != 'Unknown' %}<div class="topo-node-vendor">{{ host.vendor }}</div>{% endif %}
           <div class="topo-node-status">
@@ -147,7 +160,12 @@
         {% set peer = rs.peer %}
         <a href="/host/{{ peer.id }}" class="topo-node topo-vpn-peer">
           <div class="topo-node-label">Gateway</div>
-          <div class="topo-node-ip">{{ peer.ip }}</div>
+          <div class="topo-node-ip topo-node-ip-v4">{{ peer.ip }}</div>
+          {% if peer.v6_primary %}
+          <div class="topo-node-ip topo-node-ip-v6" {% if peer.v6_others %}title="Also: {{ peer.v6_others|join(', ') }}"{% endif %}>
+            {{ peer.v6_primary }}{% if peer.v6_primary_is_eui64 %}<span class="host-tag-chip" style="font-size:8px;padding:0 3px;margin-left:3px">EUI-64</span>{% endif %}
+          </div>
+          {% endif %}
           {% if peer.hostname %}<div class="topo-node-name">{{ peer.hostname }}</div>{% endif %}
           {% if peer.vendor and peer.vendor != 'Unknown' %}<div class="topo-node-vendor">{{ peer.vendor }}</div>{% endif %}
           <div class="topo-node-tags">
@@ -258,9 +276,21 @@ function drawVpnLinks() {
   });
 }
 
+function toggleV6Primary() {
+  var tree   = document.getElementById('topo-tree');
+  var btn    = document.getElementById('v6-toggle-btn');
+  var active = tree.classList.toggle('v6-primary');
+  btn.classList.toggle('active', active);
+  try { localStorage.setItem('topoV6Primary', active ? '1' : '0'); } catch(e) {}
+}
+
 window.addEventListener('resize', drawVpnLinks);
 var saved = parseInt(localStorage.getItem('topoMode') || '1');
 setTopoMode(saved);
+if (localStorage.getItem('topoV6Primary') === '1') {
+  document.getElementById('topo-tree').classList.add('v6-primary');
+  document.getElementById('v6-toggle-btn').classList.add('active');
+}
 </script>
 
 {% endblock %}

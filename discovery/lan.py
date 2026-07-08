@@ -140,11 +140,14 @@ async def _lookup_hostname(ip: str) -> str:
     """Try reverse DNS → mDNS → NetBIOS in order, return first hit."""
     loop = asyncio.get_event_loop()
 
-    # 1. Reverse DNS (PTR record)
+    # 1. Reverse DNS (PTR record) — normalize to short name like mDNS/NetBIOS
+    # below, since PTR records are inconsistently registered as FQDN vs short
+    # name depending on the device/DHCP server, and showing a mix of both on
+    # the same network is more confusing than showing the domain at all.
     try:
         name = await loop.run_in_executor(None, lambda: socket.gethostbyaddr(ip)[0])
         if name and name != ip:
-            return name
+            return name.split(".")[0]
     except Exception:
         pass
 
@@ -426,34 +429,9 @@ def _ipv6_interfaces() -> list[str]:
     return ifaces
 
 
-async def discover_ipv6_neighbors() -> list[dict]:
-    """
-    Discover IPv6 hosts on the local network:
-    1. Ping ff02::1 (all-nodes multicast) on each IPv6 interface to wake the NDP cache.
-    2. Read the kernel NDP neighbor table (ip -6 neigh show).
-    Returns list of {ipv6, mac, link_local} dicts; skips FAILED/INCOMPLETE entries.
-    """
-    ifaces = _ipv6_interfaces()
-    if not ifaces:
-        return []
-
-    loop = asyncio.get_event_loop()
-
-    async def _ping_multicast(iface: str):
-        try:
-            await loop.run_in_executor(
-                None,
-                lambda i=iface: subprocess.run(
-                    ["ping", "-6", "-c", "2", "-W", "1", f"ff02::1%{i}"],
-                    capture_output=True, timeout=5,
-                ),
-            )
-        except Exception:
-            pass
-
-    await asyncio.gather(*[_ping_multicast(i) for i in ifaces])
-    await asyncio.sleep(1.0)
-
+def _read_ipv6_neighbors() -> list[dict]:
+    """Parse the kernel NDP neighbor table (ip -6 neigh show) into
+    {ipv6, mac, link_local} dicts; skips FAILED/INCOMPLETE entries."""
     neighbors = []
     try:
         out = subprocess.run(
@@ -484,5 +462,49 @@ async def discover_ipv6_neighbors() -> list[dict]:
             })
     except Exception:
         pass
-
     return neighbors
+
+
+async def discover_ipv6_neighbors(rounds: int = 3, round_gap: float = 2.0) -> list[dict]:
+    """
+    Discover IPv6 hosts on the local network:
+    1. Ping ff02::1 (all-nodes multicast) on each IPv6 interface to wake the NDP cache.
+    2. Read the kernel NDP neighbor table (ip -6 neigh show).
+
+    A single probe only catches whatever happens to answer within a ~2 second
+    window — sleeping/slow devices or a dropped multicast packet (common on
+    WiFi) mean a lot of real hosts get missed. Repeating the probe a few times
+    with a gap in between and accumulating results catches far more without
+    much extra cost — each round is cheap, and this only runs as part of a
+    background discovery job.
+
+    Returns a deduplicated list of {ipv6, mac, link_local} dicts.
+    """
+    ifaces = _ipv6_interfaces()
+    if not ifaces:
+        return []
+
+    loop = asyncio.get_event_loop()
+
+    async def _ping_multicast(iface: str):
+        try:
+            await loop.run_in_executor(
+                None,
+                lambda i=iface: subprocess.run(
+                    ["ping", "-6", "-c", "2", "-W", "1", f"ff02::1%{i}"],
+                    capture_output=True, timeout=5,
+                ),
+            )
+        except Exception:
+            pass
+
+    seen: dict[str, dict] = {}
+    for round_num in range(rounds):
+        await asyncio.gather(*[_ping_multicast(i) for i in ifaces])
+        await asyncio.sleep(1.0)
+        for neighbor in await loop.run_in_executor(None, _read_ipv6_neighbors):
+            seen[neighbor["ipv6"]] = neighbor
+        if round_num < rounds - 1:
+            await asyncio.sleep(round_gap)
+
+    return list(seen.values())

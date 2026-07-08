@@ -62,7 +62,7 @@ from discovery.port_info import enrich_ports
 from license import verify_license_key, LicenseInfo, LicenseStatus
 
 # ── Version ────────────────────────────────────────────────────────────────────
-APP_VERSION     = "0.2.15"
+APP_VERSION     = "0.2.16"
 _latest_version = ""
 _update_available = False
 
@@ -538,6 +538,22 @@ async def _icmp_check(host: str, timeout: int = 5) -> tuple[bool, int | None]:
         return False, None
     except Exception:
         return False, None
+
+
+async def _ping6_reachable(addr: str, timeout: int = 2) -> bool:
+    """Quick reachability check for a derived/candidate IPv6 address —
+    never trust a computed SLAAC address without confirming the device
+    actually answers on it."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "ping", "-6", "-c", "1", "-W", str(timeout), addr,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        await asyncio.wait_for(proc.wait(), timeout=timeout + 2)
+        return proc.returncode == 0
+    except Exception:
+        return False
 
 
 async def _dns_check(hostname: str) -> tuple[bool, int | None]:
@@ -1125,6 +1141,34 @@ def _detect_ipv6_gateways() -> set[str]:
     return gateways
 
 
+def _detect_ipv6_prefixes() -> set[str]:
+    """Read on-link global/ULA /64 prefixes advertised via Router
+    Advertisement (proto ra routes, excluding the default route itself).
+    Used to derive a host's SLAAC address from its MAC when our NDP-cache
+    snapshot only picked up its link-local one."""
+    import subprocess
+    prefixes: set[str] = set()
+    try:
+        out = subprocess.run(
+            ["ip", "-6", "route", "show"], capture_output=True, text=True, timeout=5,
+        ).stdout
+        for line in out.splitlines():
+            parts = line.split()
+            if not parts or parts[0] == "default" or "proto" not in parts:
+                continue
+            if parts[parts.index("proto") + 1] != "ra":
+                continue
+            try:
+                net = ipaddress.ip_network(parts[0], strict=False)
+                if net.prefixlen == 64 and not net.network_address.is_link_local:
+                    prefixes.add(str(net))
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return prefixes
+
+
 def _classify_host(host, gateway_ips: set[str]) -> str:
     if host.ip in gateway_ips:
         return "gateway"
@@ -1181,6 +1225,23 @@ def _v6_host_part(addr: str, prefix_len: int = 64) -> str:
         return addr
 
 
+def _eui64_interface_id(mac: str) -> int | None:
+    """Compute the classic modified-EUI-64 interface identifier (the low 64
+    bits of an IPv6 address) that a MAC would produce under standard SLAAC."""
+    try:
+        b = [int(x, 16) for x in mac.lower().split(":")]
+        if len(b) != 6:
+            return None
+        eui = b[:3] + [0xff, 0xfe] + b[3:]
+        eui[0] ^= 0x02  # flip the universal/local bit
+        iid = 0
+        for byte in eui:
+            iid = (iid << 8) | byte
+        return iid
+    except Exception:
+        return None
+
+
 def _is_eui64(addr: str, mac: str) -> bool:
     """True if addr's interface identifier is the classic modified-EUI-64
     derived from mac — the stable form nearly every stack still uses for its
@@ -1189,19 +1250,32 @@ def _is_eui64(addr: str, mac: str) -> bool:
     random interface ID instead — so "not EUI-64" does NOT necessarily mean
     "manually assigned", just "not derived from this MAC")."""
     try:
-        ip6 = ipaddress.IPv6Address(addr)
-        b = [int(x, 16) for x in mac.lower().split(":")]
-        if len(b) != 6:
+        expected = _eui64_interface_id(mac)
+        if expected is None:
             return False
-        eui = b[:3] + [0xff, 0xfe] + b[3:]
-        eui[0] ^= 0x02  # flip the universal/local bit
-        expected = 0
-        for byte in eui:
-            expected = (expected << 8) | byte
-        actual = int(ip6) & ((1 << 64) - 1)
+        actual = int(ipaddress.IPv6Address(addr)) & ((1 << 64) - 1)
         return actual == expected
     except Exception:
         return False
+
+
+def _derive_eui64_address(prefix: str, mac: str) -> str | None:
+    """Given an on-link /64 prefix and a host's MAC, compute the global
+    address standard SLAAC would assign it — deterministic, not a guess.
+    Devices using IPv6 privacy/temporary addressing won't actually be
+    reachable at this address (nothing to derive it from in that case),
+    which is exactly why the caller should verify reachability before
+    trusting this, not just record it blind."""
+    try:
+        net = ipaddress.ip_network(prefix, strict=False)
+        if net.prefixlen != 64:
+            return None
+        iid = _eui64_interface_id(mac)
+        if iid is None:
+            return None
+        return str(ipaddress.IPv6Address(int(net.network_address) | iid))
+    except Exception:
+        return None
 
 
 def _enrich_ipv6_display(host) -> None:
@@ -2592,6 +2666,41 @@ async def _run_discovery_job(job_id: str, cidr: str):
                                     if gw6 not in addrs:
                                         addrs.append(gw6)
                                 gw_host.ipv6_addresses = addrs
+                    await db.commit()
+
+            # Our own multicast probe only reliably elicits a neighbor's
+            # link-local address — its global/SLAAC address only lands in
+            # the NDP cache if some other, unrelated traffic happened to
+            # touch it first. For local hosts with a known MAC, derive the
+            # SLAAC address directly from the on-link RA prefix instead of
+            # hoping we get lucky, and confirm it's real with a ping before
+            # trusting it (a device using privacy addressing simply won't
+            # answer, which is exactly the point of checking).
+            job["stage"] = "Deriving SLAAC addresses…"
+            ipv6_prefixes = _detect_ipv6_prefixes()
+            if ipv6_prefixes:
+                async with SessionLocal() as db:
+                    all_hosts = (await db.execute(select(Host))).scalars().all()
+                    candidates = []
+                    for host_row in all_hosts:
+                        if not host_row.mac or (host_row.hop_count or 0) >= 1:
+                            continue
+                        existing = set(host_row.ipv6_addresses or [])
+                        for prefix in ipv6_prefixes:
+                            derived = _derive_eui64_address(prefix, host_row.mac)
+                            if derived and derived not in existing:
+                                candidates.append((host_row, derived))
+
+                    if candidates:
+                        results = await asyncio.gather(
+                            *[_ping6_reachable(addr) for _, addr in candidates]
+                        )
+                        for (host_row, addr), reachable in zip(candidates, results):
+                            if reachable:
+                                addrs = list(host_row.ipv6_addresses or [])
+                                if addr not in addrs:
+                                    addrs.append(addr)
+                                    host_row.ipv6_addresses = addrs
                     await db.commit()
         except Exception as e:
             print(f"IPv6 discovery warning: {e}")

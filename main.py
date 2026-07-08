@@ -62,7 +62,7 @@ from discovery.port_info import enrich_ports
 from license import verify_license_key, LicenseInfo, LicenseStatus
 
 # ── Version ────────────────────────────────────────────────────────────────────
-APP_VERSION     = "0.2.16"
+APP_VERSION     = "0.2.17"
 _latest_version = ""
 _update_available = False
 
@@ -1143,9 +1143,16 @@ def _detect_ipv6_gateways() -> set[str]:
 
 def _detect_ipv6_prefixes() -> set[str]:
     """Read on-link global/ULA /64 prefixes advertised via Router
-    Advertisement (proto ra routes, excluding the default route itself).
-    Used to derive a host's SLAAC address from its MAC when our NDP-cache
-    snapshot only picked up its link-local one."""
+    Advertisement, excluding the default route itself. Used to derive a
+    host's SLAAC address from its MAC when our NDP-cache snapshot only
+    picked up its link-local one.
+
+    The proto tag for these routes isn't consistent across systems: some
+    kernels tag the on-link prefix itself "proto ra", but plenty (including
+    a plain Debian/Ubuntu VM) install it as "proto kernel" once autoconf has
+    processed the RA — only the *default* route reliably keeps "proto ra".
+    The dependable signal either way is a lease-style "expires" field, which
+    a manually configured static route never carries."""
     import subprocess
     prefixes: set[str] = set()
     try:
@@ -1154,9 +1161,11 @@ def _detect_ipv6_prefixes() -> set[str]:
         ).stdout
         for line in out.splitlines():
             parts = line.split()
-            if not parts or parts[0] == "default" or "proto" not in parts:
+            if not parts or parts[0] == "default":
                 continue
-            if parts[parts.index("proto") + 1] != "ra":
+            proto_idx = parts.index("proto") if "proto" in parts else None
+            proto = parts[proto_idx + 1] if proto_idx is not None else None
+            if proto != "ra" and "expires" not in parts:
                 continue
             try:
                 net = ipaddress.ip_network(parts[0], strict=False)
@@ -1278,15 +1287,24 @@ def _derive_eui64_address(prefix: str, mac: str) -> str | None:
         return None
 
 
-def _enrich_ipv6_display(host) -> None:
+def _enrich_ipv6_display(host, include_link_local: bool = False) -> None:
     """Attach display-only ipv6 fields to a host for the topology map:
     v6_primary (compressed, preferring a non-EUI-64 address since that's
     usually the more memorable/intentional one when there's a choice),
-    v6_primary_is_eui64, and v6_others (compressed, for the tooltip)."""
+    v6_primary_is_eui64, and v6_others (compressed, for the tooltip).
+
+    include_link_local matters for routers specifically: a router's IPv6
+    "address" that's actually meaningful is nearly always its link-local
+    one (that's what gets used as the next-hop for on-link default routes —
+    routers rarely need a global address just to route), so excluding
+    link-local by default for regular devices would hide the one address
+    we went to the trouble of capturing for a gateway."""
     host.v6_primary = None
     host.v6_primary_is_eui64 = False
     host.v6_others = []
-    addrs = [a for a in (host.ipv6_addresses or []) if not a.startswith("fe80")]
+    addrs = list(host.ipv6_addresses or [])
+    if not include_link_local:
+        addrs = [a for a in addrs if not a.startswith("fe80")]
     if not addrs:
         return
     non_eui64 = [a for a in addrs if not (host.mac and _is_eui64(a, host.mac))]
@@ -2826,6 +2844,10 @@ async def topology_page(request: Request, db: AsyncSession = Depends(get_db)):
         else:
             device_hosts.append(host)
 
+    # Re-enrich gateways including link-local — see _enrich_ipv6_display.
+    for gw in gateway_hosts:
+        _enrich_ipv6_display(gw, include_link_local=True)
+
     def _sort_ip(h):
         return [int(x) for x in h.ip.split(".")]
 
@@ -2875,6 +2897,7 @@ async def topology_page(request: Request, db: AsyncSession = Depends(get_db)):
             rest     = [h for h in hs if h.hop_count != min_hops]
             if len(closest) == 1 and all(h.hop_count == min_hops + 1 for h in rest):
                 peer, children = closest[0], rest
+                _enrich_ipv6_display(peer, include_link_local=True)
         # Dual-reachability check: does this same range also appear as a
         # directly-attached local group? That means some host answers on
         # this subnet with zero hops while others need routing — usually a

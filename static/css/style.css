@@ -1655,6 +1655,10 @@ main:has(.topo-tree) { max-width: none; }
   gap: 0.6rem;
   padding: 1.25rem 0.75rem 0;
   min-width: 0;
+  max-width: 650px;  /* caps a busy group at ~3-4 cards per row so its
+    own host cards wrap onto multiple rows, instead of the branch (and
+    the wrapping flex container inside it) growing to fit them all on
+    one endless line — that's what removing flex-shrink alone did */
   flex: 0 0 auto;  /* never shrink below natural size — scroll instead */
 }
 /* vertical stub dropping to each group label */

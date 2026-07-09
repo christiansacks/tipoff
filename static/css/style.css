@@ -1683,6 +1683,18 @@ main:has(.topo-tree) { max-width: none; }
 .topo-branch:last-child::after  { right: 50%; }
 .topo-branch:only-child::after  { display: none; }
 
+/* A lone group (By-network/Flat modes' single all-devices group, or the
+   IPv6 segments section's single /64 prefix) has no siblings to share
+   the row with, so the 650px cap meant for multiple side-by-side groups
+   just left it narrow and pinned to the left edge instead of using the
+   space. Let it claim the full row — its own .topo-group-nodes centers
+   itself and wraps based on that real width instead of a fixed low one. */
+.topo-branch:only-child {
+  width: 100%;
+  max-width: 100%;
+  flex: 1 1 auto;
+}
+
 .topo-group-label {
   font-size: 10px;
   font-family: monospace;

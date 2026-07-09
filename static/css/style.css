@@ -1634,7 +1634,13 @@ main:has(.topo-tree) { max-width: none; }
 /* ── Subnet group branches under Devices (family-tree rails) ──────── */
 .topo-branches-sub {
   display: flex;
-  justify-content: safe center;
+  /* Plain flex-start rather than "safe center" — the "safe" alignment
+     keyword has an inconsistent support history across browser engines
+     (confirmed: renders fine in Safari, compresses content in Vivaldi/
+     Chromium), so this avoids depending on it at all. Combined with
+     flex-shrink:0 below and overflow-x:auto, this guarantees content
+     never compresses to fit — it either fits, or the row scrolls. */
+  justify-content: flex-start;
   align-items: flex-start;
   flex-wrap: nowrap;
   width: 100%;
@@ -1649,7 +1655,7 @@ main:has(.topo-tree) { max-width: none; }
   gap: 0.6rem;
   padding: 1.25rem 0.75rem 0;
   min-width: 0;
-  flex: 0 1 auto;
+  flex: 0 0 auto;  /* never shrink below natural size — scroll instead */
 }
 /* vertical stub dropping to each group label */
 .topo-branch::before {

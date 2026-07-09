@@ -128,7 +128,7 @@ TipOff auto-detects what a domain actually needs checking for, rather than assum
 
 TipOff uses `nmap` + ARP to discover hosts on your network.
 
-Enter one or more CIDR ranges (comma-separated) in the dashboard, e.g. `192.168.1.0/24, 10.0.0.0/24`. Scheduled auto-scans can be configured under **Settings → LAN Scan Schedule**. Ranges are validated before scanning — IPv4 only, capped at `/16` — so a mistyped range fails fast with a clear message instead of exhausting memory on a sweep that was never going to finish.
+Enter one or more CIDR ranges (comma-separated) in the dashboard, e.g. `192.168.1.0/24, 10.0.0.0/24`, and hit **Auto-Discover** for a one-off scan — handy for rescanning just one segment by hand without touching anything else. This never changes your saved schedule; the scheduled nightly scan range is only ever set under **Settings → LAN Scan Schedule**, and the two are completely independent. Ranges are validated before scanning either way — IPv4 only, capped at `/16` — so a mistyped range fails fast with a clear message instead of exhausting memory on a sweep that was never going to finish.
 
 Once hosts are discovered, TipOff TCP-checks every open port every 5 minutes, giving you a near-realtime view of which hosts and ports are online. If a host or port goes unreachable, you can receive an instant webhook alert (see below).
 

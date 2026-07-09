@@ -62,7 +62,7 @@ from discovery.port_info import enrich_ports
 from license import verify_license_key, LicenseInfo, LicenseStatus
 
 # ── Version ────────────────────────────────────────────────────────────────────
-APP_VERSION     = "0.2.20"
+APP_VERSION     = "0.2.21"
 _latest_version = ""
 _update_available = False
 
@@ -1690,16 +1690,18 @@ async def start_discovery(
     cidr: str = Form(...),
     background_tasks: BackgroundTasks = BackgroundTasks(),
 ):
-    global _discovery_cidr
+    # This is a one-off ad-hoc scan (e.g. rescanning a single segment by
+    # hand) — it must never silently change the saved nightly-schedule
+    # CIDR, which is only ever set explicitly via Settings. The dashboard
+    # field isn't even pre-filled with the current schedule (it shows an
+    # auto-detected guess instead), so a user typing a range here has no
+    # way to notice they'd be overwriting something they never saw.
     err = _validate_discovery_cidrs(cidr)
     if err:
         import html as _html
         return HTMLResponse(
             f'<p class="empty-state" style="color:var(--fail)">{_html.escape(err)}</p>'
         )
-    if cidr != _discovery_cidr:
-        _discovery_cidr = cidr
-        asyncio.create_task(_save_setting("discovery_cidr", cidr))
 
     job_id = str(uuid.uuid4())
     _discovery_jobs[job_id] = {

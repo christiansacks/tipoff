@@ -1465,9 +1465,12 @@ input[type=number] { -moz-appearance: textfield; }
 .topo-node-tags   { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 1px; order: 5; }
 .topo-node-status { margin-top: 0.2rem; display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; order: 6; }
 
-/* IPv4/IPv6 primary-line swap — "Show IPv6 first" toggle on the Network Map.
-   Everything else above keeps an explicit order so these two can trade
-   places without disturbing the rest of the card's layout. */
+/* IPv4/IPv6 primary-line swap. Each section defaults to showing its own
+   natural address family as the bold line: IPv4 tiers show IPv4 first,
+   the IPv6 segments section shows IPv6 first. The toggle button means
+   "show me the other one" and inverts BOTH scopes at once — so it answers
+   "what's this IPv4 host's v6 address?" and "what's this v6 host's v4
+   address?" simultaneously, rather than forcing one family everywhere. */
 .topo-node-ip-v4 { order: 1; }
 .topo-node-ip-v6 {
   order: 2;
@@ -1478,6 +1481,23 @@ input[type=number] { -moz-appearance: textfield; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* IPv6 segments section: its own natural family is IPv6, so it defaults
+   the other way round from everything else. */
+.topo-v6-section .topo-node-ip-v4 {
+  order: 2;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.topo-v6-section .topo-node-ip-v6 {
+  order: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Toggle: swap to the OTHER family, in every section. */
 #topo-tree.v6-primary .topo-node-ip-v4 {
   order: 2;
   font-size: 10px;
@@ -1489,6 +1509,37 @@ input[type=number] { -moz-appearance: textfield; }
   font-size: 12px;
   font-weight: 600;
   color: var(--text);
+}
+/* ...but within the IPv6 section, "the other family" means IPv4 — higher
+   specificity than the rule above so it wins there specifically. */
+#topo-tree.v6-primary .topo-v6-section .topo-node-ip-v4 {
+  order: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+#topo-tree.v6-primary .topo-v6-section .topo-node-ip-v6 {
+  order: 2;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* "IPv6 segment on top" toggle — reorders the two top-level blocks of
+   .topo-tree (already a flex column) rather than moving anything in the DOM. */
+.topo-layout    { order: 1; }
+.topo-v6-section { order: 2; }
+#topo-tree.v6-top .topo-layout    { order: 2; }
+#topo-tree.v6-top .topo-v6-section {
+  order: 1;
+  /* the divider needs to move from "above me" to "below me" too, now
+     that something else follows instead of precedes */
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
 }
 
 /* Full-width topology page */

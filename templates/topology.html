@@ -9,7 +9,8 @@
     <button class="topo-mode-btn" data-mode="3" onclick="setTopoMode(3)" title="All hosts in one pool">Flat</button>
   </div>
   <div class="topo-mode-toggle">
-    <button class="topo-mode-btn" id="v6-toggle-btn" onclick="toggleV6Primary()" title="Show each host's IPv6 address as the bold primary line instead of IPv4">Show IPv6 first</button>
+    <button class="topo-mode-btn" id="v6-toggle-btn" onclick="toggleV6Primary()" title="Cross-reference: show each IPv4 host's IPv6 address as primary, and each IPv6-segment host's IPv4 address as primary">Show other address</button>
+    <button class="topo-mode-btn" id="v6-top-btn" onclick="toggleV6Top()" title="Move the IPv6 segments section to the top of the page">IPv6 segment on top</button>
   </div>
 </div>
 
@@ -284,12 +285,26 @@ function toggleV6Primary() {
   try { localStorage.setItem('topoV6Primary', active ? '1' : '0'); } catch(e) {}
 }
 
+function toggleV6Top() {
+  var tree   = document.getElementById('topo-tree');
+  var btn    = document.getElementById('v6-top-btn');
+  var active = tree.classList.toggle('v6-top');
+  btn.classList.toggle('active', active);
+  try { localStorage.setItem('topoV6Top', active ? '1' : '0'); } catch(e) {}
+  drawVpnLinks();  // layout shifted, connector lines need recalculating
+}
+
 window.addEventListener('resize', drawVpnLinks);
 var saved = parseInt(localStorage.getItem('topoMode') || '1');
 setTopoMode(saved);
 if (localStorage.getItem('topoV6Primary') === '1') {
   document.getElementById('topo-tree').classList.add('v6-primary');
   document.getElementById('v6-toggle-btn').classList.add('active');
+}
+if (localStorage.getItem('topoV6Top') === '1') {
+  document.getElementById('topo-tree').classList.add('v6-top');
+  document.getElementById('v6-top-btn').classList.add('active');
+  drawVpnLinks();
 }
 </script>
 

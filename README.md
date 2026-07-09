@@ -136,7 +136,7 @@ Once hosts are discovered, TipOff TCP-checks every open port every 5 minutes, gi
 
 Hosts with risky open ports (Telnet, SMB, RDP etc.) are flagged with a risk level and remediation advice. You can acknowledge flagged hosts with a note to remove them from the active alert count.
 
-**VM detection:** TipOff automatically identifies virtual machines using MAC address analysis — both known hypervisor OUI prefixes (VMware, VirtualBox, Hyper-V, Parallels, QEMU, Xen) and the locally-administered address (LAA) bit, which covers Proxmox and other hypervisors that assign random MACs. Detected VMs are tagged with a `VM` badge.
+**VM detection:** TipOff identifies virtual machines from known hypervisor MAC OUI prefixes (VMware, VirtualBox, Hyper-V, Parallels, QEMU, Xen) — tagged with a `VM` badge. Hosts whose MAC has the locally-administered bit set but no matching hypervisor OUI get a separate `Randomized MAC` badge instead of being assumed to be a VM: that bit only means "not a manufacturer-assigned address", which is equally true of a real phone or laptop using MAC privacy randomization (the default on modern iOS, macOS, and Android) as it is of a Proxmox/QEMU VM. Calling every locally-administered address a VM would misidentify perfectly ordinary devices.
 
 **IPv6 discovery:** After each LAN scan, TipOff probes each interface's IPv6 all-nodes multicast address across several rounds a few seconds apart (a single probe misses anything that doesn't answer instantly) and records what responds. The IPv6 default router is also picked up directly from the kernel's Router Advertisement–learned route, no separate probing needed since it's almost always the same device as the IPv4 gateway.
 

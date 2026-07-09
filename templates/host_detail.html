@@ -5,6 +5,7 @@
   <a href="/" class="back">← Dashboard</a>
   <h1>{{ host.ip }}</h1>
   {% if host.is_vm %}<span class="host-tag-chip host-tag-auto" style="font-size:12px">VM</span>{% endif %}
+  {% if host.mac_randomized and not host.is_vm %}<span class="host-tag-chip host-tag-auto" style="font-size:12px" title="This MAC's locally-administered bit is set — could be a VM, or a real device using MAC privacy randomization (common on iOS/macOS/Android). Can't tell which from the address alone.">Randomized MAC</span>{% endif %}
   {% if host.flagged and host.acknowledged %}
     <span class="badge ack">✓ Acknowledged</span>
   {% elif host.flagged %}
@@ -100,7 +101,7 @@
       </span>
     </div>
     {% endif %}
-    {% set all_tags = ((['VM'] if host.is_vm else []) + (['v6'] if host.ipv6_addresses else []) + (host.tags or [])) %}
+    {% set all_tags = ((['VM'] if host.is_vm else []) + (['Randomized MAC'] if host.mac_randomized and not host.is_vm else []) + (['v6'] if host.ipv6_addresses else []) + (host.tags or [])) %}
     {% if all_tags %}
     <div class="info-row">
       <span class="info-label">Tags</span>

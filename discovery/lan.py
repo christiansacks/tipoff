@@ -27,13 +27,23 @@ def set_custom_vm_ouis(ouis: set[str]) -> None:
 
 
 def _is_vm_mac(mac: str) -> bool:
+    """True only for a known hypervisor OUI — a specific, reliable signal."""
     if not mac:
         return False
     prefix = mac.lower()[:8]
-    if prefix in _VM_OUIS or prefix in _CUSTOM_VM_OUIS:
-        return True
-    # Locally Administered Address bit (0x02 in first octet) — set by Proxmox/QEMU
-    # when generating random MACs for VMs; real NIC hardware uses globally unique MACs
+    return prefix in _VM_OUIS or prefix in _CUSTOM_VM_OUIS
+
+
+def _is_randomized_mac(mac: str) -> bool:
+    """True if the Locally Administered Address bit is set — meaning "this
+    wasn't burned into hardware by the manufacturer". Proxmox/QEMU set this
+    when generating random MACs for VMs, but so does Apple/Android/Windows
+    device's own MAC privacy randomization for a real physical NIC — the
+    bit only proves "not vendor-assigned", not "virtual machine". Reported
+    as a distinct signal rather than folded into is_vm, since a laptop with
+    private Wi-Fi addressing enabled is not a VM."""
+    if not mac:
+        return False
     try:
         return bool(int(mac.split(":")[0], 16) & 0x02)
     except Exception:
@@ -329,7 +339,8 @@ async def rescan_host(ip: str) -> dict:
     arp_cache = _read_arp_cache()
     arp_data  = arp_cache.get(ip, {"mac": "", "vendor": ""})
     result    = {**arp_data, **scan_data, "hostname": hostname}
-    result["is_vm"] = _is_vm_mac(result.get("mac", ""))
+    result["is_vm"]          = _is_vm_mac(result.get("mac", ""))
+    result["mac_randomized"] = _is_randomized_mac(result.get("mac", ""))
     _, ttl, rtt = await _ping(ip)
     hop_count = _hop_count_from_ttl(ttl) if ttl is not None else None
     gateway_ip = None
@@ -375,7 +386,8 @@ async def discover_network(cidr: str, progress: dict | None = None) -> list[dict
                 progress["stage"]   = f"Scanning hosts… {progress['scanned']}/{progress['total']}"
             arp_data  = arp_cache.get(ip, {"mac": "", "vendor": ""})
             result    = {**arp_data, **scan_data, "hostname": hostname}
-            result["is_vm"] = _is_vm_mac(result.get("mac", ""))
+            result["is_vm"]          = _is_vm_mac(result.get("mac", ""))
+            result["mac_randomized"] = _is_randomized_mac(result.get("mac", ""))
             ttl       = ttl_map.get(ip)
             hop_count = _hop_count_from_ttl(ttl) if ttl is not None else None
             gateway_ip = None

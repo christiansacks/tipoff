@@ -62,7 +62,7 @@ from discovery.port_info import enrich_ports
 from license import verify_license_key, LicenseInfo, LicenseStatus
 
 # ── Version ────────────────────────────────────────────────────────────────────
-APP_VERSION     = "0.2.19"
+APP_VERSION     = "0.2.20"
 _latest_version = ""
 _update_available = False
 
@@ -1795,7 +1795,8 @@ async def rescan_host_route(
     host.open_ports = data.get("open_ports", [])
     host.flagged    = data.get("flagged", False)
     host.last_seen  = datetime.now(timezone.utc)
-    host.is_vm      = data.get("is_vm", host.is_vm or False)
+    host.is_vm          = data.get("is_vm", host.is_vm or False)
+    host.mac_randomized = data.get("mac_randomized", host.mac_randomized or False)
     if data.get("ttl") is not None:
         host.ttl        = data["ttl"]
         host.hop_count  = data.get("hop_count")
@@ -2618,7 +2619,8 @@ async def _run_discovery_job(job_id: str, cidr: str):
                     host_row.open_ports = h.get("open_ports", [])
                     host_row.flagged    = h.get("flagged", False)
                     host_row.last_seen  = datetime.now(timezone.utc)
-                    host_row.is_vm      = h.get("is_vm", False)
+                    host_row.is_vm          = h.get("is_vm", False)
+                    host_row.mac_randomized = h.get("mac_randomized", False)
                     if h.get("ttl") is not None:
                         host_row.ttl        = h["ttl"]
                         host_row.hop_count  = h.get("hop_count")
@@ -2635,6 +2637,7 @@ async def _run_discovery_job(job_id: str, cidr: str):
                         open_ports=h.get("open_ports", []),
                         flagged=h.get("flagged", False),
                         is_vm=h.get("is_vm", False),
+                        mac_randomized=h.get("mac_randomized", False),
                         ttl=h.get("ttl"),
                         hop_count=h.get("hop_count"),
                         gateway_ip=h.get("gateway_ip"),

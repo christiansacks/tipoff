@@ -61,7 +61,8 @@ class Host(Base):
     host_online      = Column(Boolean, nullable=True)   # None = never checked
     port_status      = Column(JSON, nullable=True)      # {"80": true, "443": false}
     last_ping_at     = Column(DateTime, nullable=True)
-    is_vm            = Column(Boolean, default=False)
+    is_vm            = Column(Boolean, default=False)  # known hypervisor OUI — a reliable signal
+    mac_randomized   = Column(Boolean, default=False)  # locally-administered bit set — VM OR a real device's privacy MAC, can't tell which
     tags             = Column(JSON, default=list)
     ipv6_addresses   = Column(JSON, default=list)  # list of IPv6 address strings
     ttl              = Column(Integer, nullable=True)   # ICMP reply TTL from last ping
@@ -204,6 +205,7 @@ async def init_db():
             "ALTER TABLE monitored_emails ADD COLUMN lc_ack_at DATETIME",
             "ALTER TABLE monitored_emails ADD COLUMN lc_ack_note TEXT",
             "ALTER TABLE hosts ADD COLUMN is_vm BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE hosts ADD COLUMN mac_randomized BOOLEAN DEFAULT FALSE",
             "ALTER TABLE hosts ADD COLUMN tags TEXT DEFAULT '[]'",
             "ALTER TABLE hosts ADD COLUMN ipv6_addresses TEXT DEFAULT '[]'",
             "ALTER TABLE hosts ADD COLUMN ttl INTEGER",

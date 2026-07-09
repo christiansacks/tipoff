@@ -901,6 +901,7 @@
       {% if host.hostname %}<div style="font-size:9px;color:#4b5563;overflow:hidden;max-width:130px">{{ host.hostname[:22] if host.hostname|length > 22 else host.hostname }}</div>{% endif %}
       <div style="margin-top:3px;display:flex;gap:2px;flex-wrap:wrap">
         {% if host.is_vm %}<span style="font-size:8px;background:#f5f3ff;color:#7c3aed;border-radius:99px;padding:1px 5px;font-weight:700">VM</span>{% endif %}
+        {% if host.mac_randomized and not host.is_vm %}<span style="font-size:8px;background:#f5f3ff;color:#7c3aed;border-radius:99px;padding:1px 5px;font-weight:700">priv MAC</span>{% endif %}
         {% if host.ipv6_addresses %}<span style="font-size:8px;background:#f0fdfa;color:#0d9488;border-radius:99px;padding:1px 5px;font-weight:700">v6</span>{% endif %}
         {% for tag in (host.tags or []) %}<span style="font-size:8px;background:#eff6ff;color:#3b82f6;border-radius:99px;padding:1px 5px;font-weight:600">{{ tag }}</span>{% endfor %}
         {% if host.flagged and host.acknowledged %}<span style="font-size:8px;background:#f3f4f6;color:#6b7280;border-radius:99px;padding:1px 5px">Ack'd</span>{% elif host.flagged %}<span style="font-size:8px;background:#fee2e2;color:#dc2626;border-radius:99px;padding:1px 5px;font-weight:700">!</span>{% endif %}

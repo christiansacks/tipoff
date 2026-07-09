@@ -62,7 +62,7 @@ from discovery.port_info import enrich_ports
 from license import verify_license_key, LicenseInfo, LicenseStatus
 
 # ── Version ────────────────────────────────────────────────────────────────────
-APP_VERSION     = "0.2.18"
+APP_VERSION     = "0.2.19"
 _latest_version = ""
 _update_available = False
 
@@ -2935,6 +2935,24 @@ async def topology_page(request: Request, db: AsyncSession = Depends(get_db)):
                 continue
             if h not in groups_v6[prefix]:
                 groups_v6[prefix].append(h)
+
+    def _v6_sort_key(h, prefix):
+        # Sort by the host's actual address within THIS /64 (not whatever
+        # _enrich_ipv6_display picked as display-primary, which could be a
+        # different address entirely if the host is in more than one segment).
+        net = ipaddress.ip_network(prefix, strict=False)
+        matching = []
+        for addr in (h.ipv6_addresses or []):
+            try:
+                ip6 = ipaddress.IPv6Address(addr)
+                if ip6 in net:
+                    matching.append(int(ip6))
+            except Exception:
+                continue
+        return min(matching) if matching else 0
+
+    for prefix in groups_v6:
+        groups_v6[prefix].sort(key=lambda h: _v6_sort_key(h, prefix))
 
     return _tpl("topology.html", {
         "request":            request,

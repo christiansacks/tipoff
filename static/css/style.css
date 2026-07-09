@@ -163,6 +163,17 @@ main { max-width: 1100px; margin: 0 auto; padding: 2rem; }
 }
 .inline-form input:focus { outline: none; border-color: var(--accent); }
 
+.host-search-input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 0.4rem 0.75rem;
+  font-size: 13px;
+  width: 240px;
+}
+.host-search-input:focus { outline: none; border-color: var(--accent); }
+
 button {
   background: var(--accent);
   color: white;
@@ -1495,6 +1506,23 @@ input[type=number] { -moz-appearance: textfield; }
   font-size: 12px;
   font-weight: 600;
   color: var(--text);
+}
+
+/* IPv6 cards need more room than IPv4 ones — a compressed host part like
+   ::be24:11ff:fec8:9457 doesn't fit the standard card width, which was
+   truncating 1-2 characters with only a hover tooltip (not always
+   reliable) to see the rest. Widen the cards, and let the address wrap
+   rather than ellipsis-truncate as a backstop for anything still too long. */
+.topo-v6-section .topo-node {
+  min-width: 190px;
+  max-width: 230px;
+}
+.topo-v6-section .topo-node-ip-v4,
+.topo-v6-section .topo-node-ip-v6 {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: break-all;
 }
 
 /* Toggle: swap to the OTHER family, in every section. */

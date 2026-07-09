@@ -3,6 +3,9 @@
 
 <div class="page-header">
   <h1>Network Map</h1>
+  <input type="text" id="topo-search" class="host-search-input"
+         placeholder="Find a host by name, IP, or MAC…"
+         oninput="applyMapSearch(this.value)" autocomplete="off" spellcheck="false">
   <div class="topo-mode-toggle">
     <button class="topo-mode-btn" data-mode="1" onclick="setTopoMode(1)" title="Split by /24 subnet">By /24</button>
     <button class="topo-mode-btn" data-mode="2" onclick="setTopoMode(2)" title="Group by discovery network block">By network</button>
@@ -28,7 +31,8 @@
       {% if gateway_hosts %}
       <div class="topo-tier topo-tier-multi">
         {% for gw in gateway_hosts %}
-        <a href="/host/{{ gw.id }}" class="topo-node topo-gateway" data-ip="{{ gw.ip }}">
+        <a href="/host/{{ gw.id }}" class="topo-node topo-gateway" data-ip="{{ gw.ip }}"
+           data-hostname="{{ gw.hostname or '' }}" data-mac="{{ gw.mac or '' }}">
           <div class="topo-node-label">Gateway</div>
           <div class="topo-node-ip topo-node-ip-v4">{{ gw.ip }}</div>
           {% if gw.v6_primary %}
@@ -68,7 +72,8 @@
       <div class="topo-section-label">Infrastructure</div>
       <div class="topo-tier topo-tier-multi">
         {% for host in infra_hosts %}
-        <a href="/host/{{ host.id }}" class="topo-node topo-infra {{ 'topo-flagged' if host.flagged and not host.acknowledged else 'topo-acked' if host.flagged and host.acknowledged else '' }}">
+        <a href="/host/{{ host.id }}" class="topo-node topo-infra {{ 'topo-flagged' if host.flagged and not host.acknowledged else 'topo-acked' if host.flagged and host.acknowledged else '' }}"
+           data-ip="{{ host.ip }}" data-hostname="{{ host.hostname or '' }}" data-mac="{{ host.mac or '' }}">
           <div class="topo-node-ip topo-node-ip-v4">{{ host.ip }}</div>
           {% if host.v6_primary %}
           <div class="topo-node-ip topo-node-ip-v6" {% if host.v6_others %}title="Also: {{ host.v6_others|join(', ') }}"{% endif %}>
@@ -159,7 +164,8 @@
 
         {% if rs.peer %}
         {% set peer = rs.peer %}
-        <a href="/host/{{ peer.id }}" class="topo-node topo-vpn-peer">
+        <a href="/host/{{ peer.id }}" class="topo-node topo-vpn-peer"
+           data-ip="{{ peer.ip }}" data-hostname="{{ peer.hostname or '' }}" data-mac="{{ peer.mac or '' }}">
           <div class="topo-node-label">Gateway</div>
           <div class="topo-node-ip topo-node-ip-v4">{{ peer.ip }}</div>
           {% if peer.v6_primary %}
@@ -194,7 +200,39 @@
   </div>
 
   {% if groups_v6 %}
+  {% set v6_gateways = gateway_hosts | selectattr('v6_primary') | list %}
   <div class="topo-v6-section">
+    <div class="topo-internet-node">
+      <span class="topo-internet-icon">🌐</span> Internet
+    </div>
+    <div class="topo-vline"></div>
+
+    {% if v6_gateways %}
+    <div class="topo-tier topo-tier-multi">
+      {% for gw in v6_gateways %}
+      <a href="/host/{{ gw.id }}" class="topo-node topo-gateway" data-ip="{{ gw.ip }}"
+         data-hostname="{{ gw.hostname or '' }}" data-mac="{{ gw.mac or '' }}">
+        <div class="topo-node-label">Gateway</div>
+        <div class="topo-node-ip topo-node-ip-v4">{{ gw.ip }}</div>
+        <div class="topo-node-ip topo-node-ip-v6" {% if gw.v6_others %}title="Also: {{ gw.v6_others|join(', ') }}"{% endif %}>
+          {{ gw.v6_primary }}{% if gw.v6_primary_is_eui64 %}<span class="host-tag-chip" style="font-size:8px;padding:0 3px;margin-left:3px">EUI-64</span>{% endif %}
+        </div>
+        {% if gw.hostname %}<div class="topo-node-name">{{ gw.hostname }}</div>{% endif %}
+        <div class="topo-node-status">
+          {% if gw.host_online is not none %}
+            <span class="host-ping {{ 'host-ping-up' if gw.host_online else 'host-ping-down' }}">
+              {{ '● Online' if gw.host_online else '● Offline' }}
+            </span>
+          {% endif %}
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    <div class="topo-vline"></div>
+    {% endif %}
+    <div class="topo-branch-head">Local network</div>
+
+    <div class="topo-vline"></div>
     <div class="topo-section-label">IPv6 segments</div>
     <div class="topo-branches-sub" style="flex-wrap:wrap">
       {% for prefix, hosts in groups_v6.items() %}
@@ -292,6 +330,20 @@ function toggleV6Top() {
   btn.classList.toggle('active', active);
   try { localStorage.setItem('topoV6Top', active ? '1' : '0'); } catch(e) {}
   drawVpnLinks();  // layout shifted, connector lines need recalculating
+}
+
+function applyMapSearch(value) {
+  var query = value.trim().toLowerCase();
+  document.querySelectorAll('.topo-node').forEach(function(el) {
+    if (!query) { el.style.display = ''; return; }
+    var haystack = (
+      (el.dataset.ip || '') + ' ' +
+      (el.dataset.hostname || '') + ' ' +
+      (el.dataset.mac || '')
+    ).toLowerCase();
+    el.style.display = haystack.includes(query) ? '' : 'none';
+  });
+  drawVpnLinks();  // some nodes may have disappeared, connector lines shift
 }
 
 window.addEventListener('resize', drawVpnLinks);

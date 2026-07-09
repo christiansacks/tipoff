@@ -148,6 +148,8 @@ Each part of the map defaults to showing its own natural address family as the b
 
 **Host tagging:** Add your own freeform tags to any host — `production`, `dmz`, `printer`, whatever makes sense for your network. The dashboard includes a tag filter bar so you can quickly isolate a group of hosts.
 
+**Finding a host:** Both the dashboard and the Network Map have a search box — find a host instantly by name, IP, or MAC address, without needing to scroll or remember which subnet it's in. On the dashboard it combines with the tag filter (a host has to match both to show).
+
 > **Linux only:** LAN discovery requires `network_mode: host`, `NET_RAW`, and `NET_ADMIN` capabilities, which are pre-configured in `docker-compose.yml`. These are needed for raw socket ARP scanning.
 
 ---
@@ -169,7 +171,7 @@ Three toggle modes for the local devices tier, remembered in your browser:
 
 **Dual-reachable flag:** if the same subnet shows up both as directly-attached local devices *and* as a routed subnet, the map flags it — that usually means a host is bridging two segments (a second NIC, or acting as a router). Harmless on a homelab, worth a look on a network that expects proper segmentation.
 
-**IPv6 segments** discovered via NDP are drawn as their own section, grouped by /64 prefix (link-local addresses excluded, since every host has one and it isn't a real segment).
+**IPv6 segments** discovered via NDP are drawn as their own section, grouped by /64 prefix (link-local addresses excluded, since every host has one and it isn't a real segment), sorted by the actual IPv6 address rather than inheriting IPv4 order. It gets its own Internet → Gateway → Local network tree, same skeleton as the IPv4 side, when a router's IPv6 address is known — not just a flat list of pills. Cards in this section are wider than the standard IPv4 ones, with room for a full compressed address instead of relying on a hover tooltip to see the last couple of truncated characters.
 
 The network map is also included in PDF reports (Pro).
 

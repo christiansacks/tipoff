@@ -1,4 +1,5 @@
-<a href="/host/{{ host.id }}" class="topo-node topo-device {{ 'topo-flagged' if host.flagged and not host.acknowledged else 'topo-acked' if host.flagged and host.acknowledged else '' }}">
+<a href="/host/{{ host.id }}" class="topo-node topo-device {{ 'topo-flagged' if host.flagged and not host.acknowledged else 'topo-acked' if host.flagged and host.acknowledged else '' }}"
+   data-ip="{{ host.ip }}" data-hostname="{{ host.hostname or '' }}" data-mac="{{ host.mac or '' }}">
   <div class="topo-node-ip topo-node-ip-v4">{{ host.ip }}</div>
   {% if host.v6_primary %}
   <div class="topo-node-ip topo-node-ip-v6" {% if host.v6_others %}title="Also: {{ host.v6_others|join(', ') }}"{% endif %}>

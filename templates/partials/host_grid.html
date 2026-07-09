@@ -1,7 +1,11 @@
 {% if hosts %}
 <div class="host-grid">
   {% for host in hosts %}
-  <div class="host-card {{ 'flagged' if host.flagged and not host.acknowledged else 'acknowledged' if host.flagged and host.acknowledged else '' }}" data-host-tags="{{ ((['VM'] if host.is_vm else []) + (['v6'] if host.ipv6_addresses else []) + (host.tags or [])) | join(',') }}">
+  <div class="host-card {{ 'flagged' if host.flagged and not host.acknowledged else 'acknowledged' if host.flagged and host.acknowledged else '' }}"
+       data-host-tags="{{ ((['VM'] if host.is_vm else []) + (['v6'] if host.ipv6_addresses else []) + (host.tags or [])) | join(',') }}"
+       data-ip="{{ host.ip }}"
+       data-hostname="{{ host.hostname or '' }}"
+       data-mac="{{ host.mac or '' }}">
     <div class="host-header">
       <a href="/host/{{ host.id }}" class="host-ip">{{ host.ip }}</a>
       <div class="host-header-right">

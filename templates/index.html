@@ -132,6 +132,9 @@
           <button class="view-btn active" id="btn-grid" onclick="setView('grid')" title="Grid view">⊞</button>
           <button class="view-btn" id="btn-list" onclick="setView('list')" title="List view">☰</button>
         </div>
+        <input type="text" id="host-search" class="host-search-input"
+               placeholder="Find a host by name, IP, or MAC…"
+               oninput="applyHostSearch(this.value)" autocomplete="off" spellcheck="false">
         {% if not readonly %}
         <form hx-post="/discover"
               hx-target="#host-area"
@@ -310,13 +313,14 @@
     if (e.detail.target && e.detail.target.id === 'host-area') {
       restoreSort();
       rebuildTagFilter();
-      applyTagFilter();
+      applyFilters();
     }
   });
   restoreSort();
 
-  // ── Tag filter ─────────────────────────────────────────────────
-  let _activeTags = new Set();
+  // ── Tag + text filter (combined — a host must pass both to show) ──
+  let _activeTags   = new Set();
+  let _searchQuery  = '';
 
   function collectTags() {
     const tags = new Set();
@@ -347,17 +351,34 @@
     }
   }
 
-  function applyTagFilter() {
+  function applyFilters() {
     document.querySelectorAll('.host-card, .host-table-row').forEach(el => {
-      if (_activeTags.size === 0) { el.style.display = ''; return; }
-      const hostTags = (el.dataset.hostTags || '').split(',');
-      el.style.display = [..._activeTags].every(t => hostTags.includes(t)) ? '' : 'none';
+      let visible = true;
+      if (_activeTags.size > 0) {
+        const hostTags = (el.dataset.hostTags || '').split(',');
+        visible = [..._activeTags].every(t => hostTags.includes(t));
+      }
+      if (visible && _searchQuery) {
+        const haystack = (
+          (el.dataset.ip || '') + ' ' +
+          (el.dataset.hostname || '') + ' ' +
+          (el.dataset.mac || '') + ' ' +
+          (el.dataset.vendor || '')
+        ).toLowerCase();
+        visible = haystack.includes(_searchQuery);
+      }
+      el.style.display = visible ? '' : 'none';
     });
+  }
+
+  function applyHostSearch(value) {
+    _searchQuery = value.trim().toLowerCase();
+    applyFilters();
   }
 
   function toggleTagFilter(tag) {
     if (_activeTags.has(tag)) { _activeTags.delete(tag); } else { _activeTags.add(tag); }
-    applyTagFilter();
+    applyFilters();
     document.querySelectorAll('.tag-filter-btn').forEach(b => {
       if (b.dataset.tag === '') b.classList.toggle('active', _activeTags.size === 0);
       else b.classList.toggle('active', _activeTags.has(b.dataset.tag));
@@ -366,7 +387,7 @@
 
   function clearTagFilter() {
     _activeTags.clear();
-    applyTagFilter();
+    applyFilters();
     document.querySelectorAll('.tag-filter-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.tag === '');
     });

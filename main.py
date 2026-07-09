@@ -62,7 +62,7 @@ from discovery.port_info import enrich_ports
 from license import verify_license_key, LicenseInfo, LicenseStatus
 
 # ── Version ────────────────────────────────────────────────────────────────────
-APP_VERSION     = "0.2.22"
+APP_VERSION     = "0.2.23"
 _latest_version = ""
 _update_available = False
 
@@ -2929,7 +2929,7 @@ async def topology_page(request: Request, db: AsyncSession = Depends(get_db)):
     # IPv6 segments — group hosts by discovered /64 prefix (from NDP), skip
     # link-local addresses since every host has one and it's not a segment.
     groups_v6 = defaultdict(list)
-    for h in (gateway_hosts + infra_hosts + device_hosts + remote_hosts):
+    for h in (device_hosts + remote_hosts):
         for addr in (h.ipv6_addresses or []):
             try:
                 ip6 = ipaddress.IPv6Address(addr)

@@ -232,6 +232,15 @@
     {% endif %}
     <div class="topo-branch-head">Local network</div>
 
+    {% set infra_v6 = infra_hosts | selectattr('v6_primary') | list %}
+    {% if infra_v6 %}
+    <div class="topo-vline"></div>
+    <div class="topo-section-label">Infrastructure</div>
+    <div class="topo-tier topo-tier-multi">
+      {% for host in infra_v6 %}{% include "partials/topo_node.html" %}{% endfor %}
+    </div>
+    {% endif %}
+
     <div class="topo-vline"></div>
     <div class="topo-section-label">IPv6 segments</div>
     <div class="topo-branches-sub" style="flex-wrap:wrap">

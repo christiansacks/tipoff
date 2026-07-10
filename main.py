@@ -62,7 +62,7 @@ from discovery.port_info import enrich_ports
 from license import verify_license_key, LicenseInfo, LicenseStatus
 
 # ── Version ────────────────────────────────────────────────────────────────────
-APP_VERSION     = "0.2.26"
+APP_VERSION     = "0.2.27"
 _latest_version = ""
 _update_available = False
 
@@ -1312,6 +1312,32 @@ def _enrich_ipv6_display(host, include_link_local: bool = False) -> None:
     host.v6_primary = _v6_host_part(primary)
     host.v6_primary_is_eui64 = bool(host.mac and _is_eui64(primary, host.mac))
     host.v6_others = [_v6_host_part(a) for a in addrs if a != primary]
+
+
+def _v6_prefix_display(h, prefix: str) -> tuple[str | None, bool]:
+    """The address (compressed) and EUI-64 flag to show for this host
+    specifically within the given /64 segment group — NOT host.v6_primary,
+    which is a single global choice per host (preferring non-EUI-64) and
+    can be the WRONG prefix's address entirely for a dual-stack host: a
+    host with a manually-numbered ULA address and a separate EUI-64 GUA
+    address had its ULA text shown under the GUA segment's card, because
+    v6_primary doesn't know which group is currently being rendered."""
+    net = ipaddress.ip_network(prefix, strict=False)
+    candidates = []
+    for addr in (h.ipv6_addresses or []):
+        try:
+            if ipaddress.IPv6Address(addr) in net:
+                candidates.append(addr)
+        except Exception:
+            continue
+    if not candidates:
+        return None, False
+    non_eui64 = [a for a in candidates if not (h.mac and _is_eui64(a, h.mac))]
+    chosen = non_eui64[0] if non_eui64 else candidates[0]
+    return _v6_host_part(chosen), bool(h.mac and _is_eui64(chosen, h.mac))
+
+
+templates.env.globals["v6_prefix_display"] = _v6_prefix_display
 
 
 # ── Pages ──────────────────────────────────────────────────────────────────────

@@ -1,10 +1,12 @@
+{% set _v6_addr  = v6_override if v6_override is defined and v6_override else host.v6_primary %}
+{% set _v6_eui64 = v6_override_eui64 if v6_override is defined and v6_override else host.v6_primary_is_eui64 %}
 <a href="/host/{{ host.id }}" class="topo-node topo-device {{ 'topo-flagged' if host.flagged and not host.acknowledged else 'topo-acked' if host.flagged and host.acknowledged else '' }}"
    data-ip="{{ host.ip }}" data-hostname="{{ host.hostname or '' }}" data-mac="{{ host.mac or '' }}"
    data-v6="{{ (([host.v6_primary] if host.v6_primary else []) + (host.v6_others or []) + (host.ipv6_addresses or [])) | join(' ') }}">
   <div class="topo-node-ip topo-node-ip-v4">{{ host.ip }}</div>
-  {% if host.v6_primary %}
+  {% if _v6_addr %}
   <div class="topo-node-ip topo-node-ip-v6" {% if host.v6_others %}title="Also: {{ host.v6_others|join(', ') }}"{% endif %}>
-    {{ host.v6_primary }}{% if host.v6_primary_is_eui64 %}<span class="host-tag-chip" style="font-size:8px;padding:0 3px;margin-left:3px" title="Derived from this device's MAC address — the stable EUI-64/SLAAC form, not a manually chosen address">EUI-64</span>{% endif %}
+    {{ _v6_addr }}{% if _v6_eui64 %}<span class="host-tag-chip" style="font-size:8px;padding:0 3px;margin-left:3px" title="Derived from this device's MAC address — the stable EUI-64/SLAAC form, not a manually chosen address">EUI-64</span>{% endif %}
   </div>
   {% endif %}
   {% if host.hostname %}<div class="topo-node-name">{{ host.hostname }}</div>{% endif %}

@@ -251,7 +251,12 @@
       <div class="topo-branch" style="padding-top:0">
         <div class="topo-group-label" style="font-family:monospace">{{ prefix }}</div>
         <div class="topo-group-nodes">
-          {% for host in hosts %}{% include "partials/topo_node.html" %}{% endfor %}
+          {% for host in hosts %}
+          {% set v6d = v6_prefix_display(host, prefix) %}
+          {% set v6_override = v6d[0] %}
+          {% set v6_override_eui64 = v6d[1] %}
+          {% include "partials/topo_node.html" %}
+          {% endfor %}
         </div>
       </div>
       {% endfor %}

@@ -1446,8 +1446,11 @@ input[type=number] { -moz-appearance: textfield; }
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.6rem 0.8rem;
-  min-width: 130px;
-  max-width: 175px;
+  width: 175px;
+  flex: 0 0 175px;  /* fixed, not a min/max range — a range let each card
+    size to its own content (short IP-only cards shrank toward the min,
+    longer ones stretched toward the max), which read as a ragged row.
+    Same fix as the height one below, other axis. */
   min-height: 118px;  /* cards show a variable number of optional lines
     (IPv6 address, hostname, vendor, tags) — without a shared floor a
     sparse card (just IP + status) sits noticeably shorter than a full
@@ -1518,8 +1521,8 @@ input[type=number] { -moz-appearance: textfield; }
    reliable) to see the rest. Widen the cards, and let the address wrap
    rather than ellipsis-truncate as a backstop for anything still too long. */
 .topo-v6-section .topo-node {
-  min-width: 190px;
-  max-width: 230px;
+  width: 230px;
+  flex: 0 0 230px;
 }
 .topo-v6-section .topo-node-ip-v4,
 .topo-v6-section .topo-node-ip-v6 {

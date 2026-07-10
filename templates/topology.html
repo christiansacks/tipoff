@@ -32,7 +32,8 @@
       <div class="topo-tier topo-tier-multi">
         {% for gw in gateway_hosts %}
         <a href="/host/{{ gw.id }}" class="topo-node topo-gateway" data-ip="{{ gw.ip }}"
-           data-hostname="{{ gw.hostname or '' }}" data-mac="{{ gw.mac or '' }}">
+           data-hostname="{{ gw.hostname or '' }}" data-mac="{{ gw.mac or '' }}"
+           data-v6="{{ (([gw.v6_primary] if gw.v6_primary else []) + (gw.v6_others or []) + (gw.ipv6_addresses or [])) | join(' ') }}">
           <div class="topo-node-label">Gateway</div>
           <div class="topo-node-ip topo-node-ip-v4">{{ gw.ip }}</div>
           {% if gw.v6_primary %}
@@ -165,7 +166,8 @@
         {% if rs.peer %}
         {% set peer = rs.peer %}
         <a href="/host/{{ peer.id }}" class="topo-node topo-vpn-peer"
-           data-ip="{{ peer.ip }}" data-hostname="{{ peer.hostname or '' }}" data-mac="{{ peer.mac or '' }}">
+           data-ip="{{ peer.ip }}" data-hostname="{{ peer.hostname or '' }}" data-mac="{{ peer.mac or '' }}"
+           data-v6="{{ (([peer.v6_primary] if peer.v6_primary else []) + (peer.v6_others or []) + (peer.ipv6_addresses or [])) | join(' ') }}">
           <div class="topo-node-label">Gateway</div>
           <div class="topo-node-ip topo-node-ip-v4">{{ peer.ip }}</div>
           {% if peer.v6_primary %}
@@ -211,7 +213,8 @@
     <div class="topo-tier topo-tier-multi">
       {% for gw in v6_gateways %}
       <a href="/host/{{ gw.id }}" class="topo-node topo-gateway" data-ip="{{ gw.ip }}"
-         data-hostname="{{ gw.hostname or '' }}" data-mac="{{ gw.mac or '' }}">
+         data-hostname="{{ gw.hostname or '' }}" data-mac="{{ gw.mac or '' }}"
+         data-v6="{{ (([gw.v6_primary] if gw.v6_primary else []) + (gw.v6_others or []) + (gw.ipv6_addresses or [])) | join(' ') }}">
         <div class="topo-node-label">Gateway</div>
         <div class="topo-node-ip topo-node-ip-v4">{{ gw.ip }}</div>
         <div class="topo-node-ip topo-node-ip-v6" {% if gw.v6_others %}title="Also: {{ gw.v6_others|join(', ') }}"{% endif %}>
@@ -290,7 +293,10 @@ function drawVpnLinks() {
   var want = branches[0].dataset.gw;
   var gw = (want && tree.querySelector('.topo-gateway[data-ip="' + want + '"]'))
            || tree.querySelector('.topo-gateway');
-  if (!gw) { col.style.paddingTop = ''; return; }
+  // offsetParent is null for display:none elements (e.g. filtered out by
+  // search) — getBoundingClientRect on those collapses to all-zero, which
+  // was sending the connector lines shooting off to the top-left corner.
+  if (!gw || gw.offsetParent === null) { col.style.paddingTop = ''; return; }
 
   var treeR = tree.getBoundingClientRect();
   var gwR   = gw.getBoundingClientRect();
@@ -348,7 +354,8 @@ function applyMapSearch(value) {
     var haystack = (
       (el.dataset.ip || '') + ' ' +
       (el.dataset.hostname || '') + ' ' +
-      (el.dataset.mac || '')
+      (el.dataset.mac || '') + ' ' +
+      (el.dataset.v6 || '')
     ).toLowerCase();
     el.style.display = haystack.includes(query) ? '' : 'none';
   });

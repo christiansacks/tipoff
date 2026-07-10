@@ -1448,6 +1448,10 @@ input[type=number] { -moz-appearance: textfield; }
   padding: 0.6rem 0.8rem;
   min-width: 130px;
   max-width: 175px;
+  min-height: 118px;  /* cards show a variable number of optional lines
+    (IPv6 address, hostname, vendor, tags) — without a shared floor a
+    sparse card (just IP + status) sits noticeably shorter than a full
+    one right next to it. Sized for the tallest realistic combination. */
   text-decoration: none;
   color: var(--text);
   transition: border-color 0.15s, transform 0.1s;

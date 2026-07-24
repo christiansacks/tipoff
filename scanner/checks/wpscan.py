@@ -90,9 +90,17 @@ async def _check_url(base: str) -> dict:
         "theme_versions":  {},
     }
 
+    # A stock httpx UA reads as a bot to Cloudflare and similar edge WAFs, which
+    # can challenge/block wp-login.php and wp-json even when the homepage itself
+    # is unprotected — looking like a normal browser avoids that false negative.
+    headers = {
+        "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"),
+    }
+
     try:
         async with httpx.AsyncClient(verify=_SSL_CTX, timeout=_TIMEOUT,
-                                     follow_redirects=True) as client:
+                                     follow_redirects=True, headers=headers) as client:
             # 1. wp-login.php
             try:
                 r = await client.get(f"{base}/wp-login.php")
@@ -116,20 +124,20 @@ async def _check_url(base: str) -> dict:
                 except Exception:
                     pass
 
-            if not result["detected"]:
-                return result
-
-            # 3. Homepage — version, plugin slugs+versions, theme slugs+versions
+            # 3. Homepage — checked regardless of whether 1/2 succeeded, since a
+            # WAF/challenge in front of wp-login.php or wp-json shouldn't hide a
+            # plain WordPress homepage from detection.
             try:
                 r = await client.get(base)
                 if r.status_code == 200:
                     html = r.text
 
-                    if not result["version"]:
-                        m = re.search(
-                            r'<meta[^>]+name=["\']generator["\'][^>]+content=["\']WordPress\s+([\d.]+)',
-                            html, re.I)
-                        if m:
+                    m = re.search(
+                        r'<meta[^>]+name=["\']generator["\'][^>]+content=["\']WordPress(?:\s+([\d.]+))?',
+                        html, re.I)
+                    if m:
+                        result["detected"] = True
+                        if m.group(1) and not result["version"]:
                             result["version"] = m.group(1)
 
                     # Extract plugin slugs and the highest ver= seen for each
@@ -151,6 +159,11 @@ async def _check_url(base: str) -> dict:
                     for slug in re.findall(r'wp-content/themes/([a-z0-9_-]+)/', html):
                         if slug not in theme_vers:
                             theme_vers[slug] = None
+
+                    if plugin_vers or theme_vers:
+                        result["detected"] = True
+                    elif re.search(r'wp-content/|wp-includes/', html):
+                        result["detected"] = True
 
                     result["plugins"]         = sorted(plugin_vers.keys())
                     result["themes"]          = sorted(theme_vers.keys())

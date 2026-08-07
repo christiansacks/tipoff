@@ -217,6 +217,10 @@ async def init_db():
             "ALTER TABLE domains ADD COLUMN check_mail BOOLEAN DEFAULT TRUE",
             "ALTER TABLE domains ADD COLUMN has_mx BOOLEAN",
             "ALTER TABLE domains ADD COLUMN manual_expiry_date DATETIME",
+            "CREATE INDEX IF NOT EXISTS ix_uptime_checks_domain_checked "
+                "ON uptime_checks (domain_id, checked_at)",
+            "CREATE INDEX IF NOT EXISTS ix_uptime_checks_monitor_checked "
+                "ON uptime_checks (monitor_id, checked_at)",
         ]:
             try:
                 await conn.execute(text(sql))

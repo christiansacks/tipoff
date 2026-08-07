@@ -1,13 +1,13 @@
 import asyncio, ipaddress, json, os, secrets, socket, uuid
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 
 from fastapi import FastAPI, Request, Depends, Form, BackgroundTasks
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.database import (
@@ -62,7 +62,7 @@ from discovery.port_info import enrich_ports
 from license import verify_license_key, LicenseInfo, LicenseStatus
 
 # ── Version ────────────────────────────────────────────────────────────────────
-APP_VERSION     = "0.2.29"
+APP_VERSION     = "0.2.30"
 _latest_version = ""
 _update_available = False
 
@@ -3077,10 +3077,52 @@ async def subnet_calc_page(request: Request):
     return _tpl("subnet_calc.html", {"request": request})
 
 
+async def _uptime_grid(db: AsyncSession, *, filter_col, filter_val, now: datetime, days: int = 90):
+    """Daily up/total buckets + latest check for one domain/monitor.
+
+    Aggregates in SQL (GROUP BY date(checked_at)) instead of pulling every raw
+    check row into Python — with 5-minute checks and 90 days of history that's
+    up to ~26k rows per item otherwise, and it only gets worse as more items
+    get added and the retention window fills up.
+    """
+    cutoff = now - timedelta(days=days)
+    day_col = func.date(UptimeCheck.checked_at)
+    agg_result = await db.execute(
+        select(
+            day_col.label("day"),
+            func.count(UptimeCheck.id).label("total"),
+            func.sum(case((UptimeCheck.is_up == True, 1), else_=0)).label("up"),
+        ).where(filter_col == filter_val, UptimeCheck.checked_at >= cutoff)
+        .group_by(day_col)
+    )
+    daily = {date.fromisoformat(day_str): {"up": up or 0, "total": total or 0}
+             for day_str, total, up in agg_result}
+
+    grid = []
+    for i in range(days):
+        day = (now - timedelta(days=days - 1 - i)).date()
+        if day in daily:
+            b = daily[day]
+            pct = b["up"] / b["total"] if b["total"] else 0
+            state = "up" if pct >= 0.8 else ("degraded" if pct >= 0.4 else "down")
+        else:
+            state = "nodata"
+        grid.append({"date": day.strftime("%d %b %Y"), "state": state})
+
+    total_checks = sum(d["total"] for d in daily.values())
+    up_checks    = sum(d["up"] for d in daily.values())
+    uptime_pct   = round(up_checks / total_checks * 100, 2) if total_checks else None
+
+    latest_result = await db.execute(
+        select(UptimeCheck).where(filter_col == filter_val)
+        .order_by(UptimeCheck.checked_at.desc()).limit(1)
+    )
+    latest = latest_result.scalars().first()
+    return grid, uptime_pct, latest
+
+
 @app.get("/status", response_class=HTMLResponse)
 async def status_page(request: Request, db: AsyncSession = Depends(get_db)):
-    from datetime import timedelta
-    from sqlalchemy import and_
     now = datetime.now(timezone.utc)
     days = 90
 
@@ -3089,46 +3131,9 @@ async def status_page(request: Request, db: AsyncSession = Depends(get_db)):
 
     items = []
     for domain in domains:
-        cutoff = now - timedelta(days=days)
-        checks_result = await db.execute(
-            select(UptimeCheck).where(
-                UptimeCheck.domain_id == domain.id,
-                UptimeCheck.checked_at >= cutoff,
-            ).order_by(UptimeCheck.checked_at.asc())
+        grid, uptime_pct, latest = await _uptime_grid(
+            db, filter_col=UptimeCheck.domain_id, filter_val=domain.id, now=now, days=days
         )
-        checks = checks_result.scalars().all()
-
-        # Build daily buckets for the grid
-        daily = {}
-        for c in checks:
-            day_key = c.checked_at.date()
-            if day_key not in daily:
-                daily[day_key] = {"up": 0, "total": 0}
-            daily[day_key]["total"] += 1
-            if c.is_up:
-                daily[day_key]["up"] += 1
-
-        grid = []
-        for i in range(days):
-            day = (now - timedelta(days=days - 1 - i)).date()
-            if day in daily:
-                b = daily[day]
-                pct = b["up"] / b["total"] if b["total"] else 0
-                state = "up" if pct >= 0.8 else ("degraded" if pct >= 0.4 else "down")
-            else:
-                state = "nodata"
-            grid.append({"date": day.strftime("%d %b %Y"), "state": state})
-
-        total_checks = sum(d["total"] for d in daily.values())
-        up_checks    = sum(d["up"] for d in daily.values())
-        uptime_pct   = round(up_checks / total_checks * 100, 2) if total_checks else None
-
-        # Current status = most recent check
-        latest_result = await db.execute(
-            select(UptimeCheck).where(UptimeCheck.domain_id == domain.id)
-            .order_by(UptimeCheck.checked_at.desc())
-        )
-        latest = latest_result.scalars().first()
         current_up = latest.is_up if latest else None
 
         if domain.monitor_web is False:
@@ -3155,40 +3160,9 @@ async def status_page(request: Request, db: AsyncSession = Depends(get_db)):
         Monitor.public_status == True, Monitor.enabled == True
     ))
     for mon in monitors_result.scalars().all():
-        cutoff = now - timedelta(days=days)
-        checks_result = await db.execute(
-            select(UptimeCheck).where(
-                UptimeCheck.monitor_id == mon.id,
-                UptimeCheck.checked_at >= cutoff,
-            ).order_by(UptimeCheck.checked_at.asc())
+        grid, uptime_pct, latest = await _uptime_grid(
+            db, filter_col=UptimeCheck.monitor_id, filter_val=mon.id, now=now, days=days
         )
-        checks = checks_result.scalars().all()
-        daily = {}
-        for c in checks:
-            day_key = c.checked_at.date()
-            if day_key not in daily:
-                daily[day_key] = {"up": 0, "total": 0}
-            daily[day_key]["total"] += 1
-            if c.is_up:
-                daily[day_key]["up"] += 1
-        grid = []
-        for i in range(days):
-            day = (now - timedelta(days=days - 1 - i)).date()
-            if day in daily:
-                b = daily[day]
-                pct = b["up"] / b["total"] if b["total"] else 0
-                state = "up" if pct >= 0.8 else ("degraded" if pct >= 0.4 else "down")
-            else:
-                state = "nodata"
-            grid.append({"date": day.strftime("%d %b %Y"), "state": state})
-        total_checks = sum(d["total"] for d in daily.values())
-        up_checks    = sum(d["up"] for d in daily.values())
-        uptime_pct   = round(up_checks / total_checks * 100, 2) if total_checks else None
-        latest_result = await db.execute(
-            select(UptimeCheck).where(UptimeCheck.monitor_id == mon.id)
-            .order_by(UptimeCheck.checked_at.desc())
-        )
-        latest = latest_result.scalars().first()
         if mon.protocol == "icmp":
             sublabel = f"{mon.host} (ICMP ping)"
         else:

@@ -1,4 +1,5 @@
 import asyncio
+import subprocess
 from datetime import datetime
 from scanner.models import CheckResult, Status
 
@@ -66,9 +67,24 @@ def check_result_for_expiry(expiry: datetime, source: str = "WHOIS") -> CheckRes
 
 def _whois_lookup(domain: str) -> CheckResult:
     try:
-        import whois
-        w = whois.whois(domain)
-        expiry = w.expiration_date
+        # python-whois's built-in socket client resolves the per-TLD server via
+        # an IANA referral lookup, but IANA's record for .uk carries an empty
+        # "whois:" field (Nominet publishes a website instead of a machine
+        # referral there), so that path always fails for every .uk/.co.uk/
+        # .org.uk domain. The system `whois` binary has its own well-maintained
+        # TLD server table that doesn't have this gap, so we shell out to it
+        # for lookup and only reuse python-whois for its per-TLD text parsers.
+        from whois.parser import WhoisEntry
+
+        proc = subprocess.run(
+            ["whois", domain], capture_output=True, timeout=15, text=True,
+        )
+        text = proc.stdout
+        if not text.strip():
+            raise RuntimeError(f"whois returned no output (exit {proc.returncode}): {proc.stderr.strip()}")
+
+        w = WhoisEntry.load(domain, text)
+        expiry = w.get("expiration_date")
 
         if isinstance(expiry, list):
             expiry = expiry[0]
